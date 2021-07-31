@@ -1,5 +1,6 @@
 import numpy as np
 import gurobipy as gurobi
+from config.powergas import getConfig
 def tonp(vars_gur) -> np.array:
     keys = vars_gur.keys()
     key_last = keys[-1]
@@ -46,21 +47,28 @@ def tonp(vars_gur) -> np.array:
         return re
 
 
+# TODO:
+#  1, original problem solve
+#  2, dual problem solve
+#  3, add constraints algorithm
+
+
+
+
 class PowerGas:
     def __init__(self, powerConfig, gasConfig, pipelineConfig):
         pc = powerConfig
         gc = gasConfig
         thermal_gen_info = pc['thermal_gen_info']
         power_bus_info = pc['bus_info']
-        power_load_info = pc['load_info']
-        power_line_info = pc['line_info']
+        power_load_info = pc['power_load_info']
+        power_line_info = pc['power_line_info']
         gas_line_info = gc['gas_line_info']
         gas_node_info = gc['gas_node_info']
         gas_load_info = gc['gas_load_info']
         gas_generator_info = gc['gas_generator_info']
         gas_well_info = gc['gas_well_info']
-        # config the power system
-        # ------------- generator of non-gas ----------------------
+        # ------------- generator of non-gas [power system]----------------------
         self.gen_num = thermal_gen_info['gen_num']  # add virtual node at last as the connected node
         self.gen_conn_power_index = thermal_gen_info['gen_index']
         self.gen_power_min = thermal_gen_info['gen_power_min']
@@ -81,8 +89,8 @@ class PowerGas:
         self.line_end_point = power_line_info['line_end_point']
         self.line_resistance = power_line_info['line_resistance']
         self.line_reactance = power_line_info['line_reactance']
-        self.line_power_flow_max = power_line_info['line_power_flow_max']
-        self.line_react_flow_max = power_line_info['line_react_flow_max']
+        self.line_power_flow_max = power_line_info['line_power_flow_capacity']
+        self.line_react_flow_max = power_line_info['line_react_flow_capacity']
         # ----------------- power load -------------------------------
         self.load_num = power_load_info['load_num']
         self.load_index = power_load_info['load_index']
@@ -90,18 +98,14 @@ class PowerGas:
         self.load_power_max = power_load_info['load_power_max']
         self.load_react_min = power_load_info['load_react_min']
         self.load_react_max = power_load_info['load_react_max']
-        # config the gas system
-        # ----------------- gas line info ------------------------------
+        # ----------------- gas line info [gas system]------------------------------
         self.gas_line_num = gas_line_info['gas_line_num']
-        self.gas_flow_min = gas_line_info['gas_flow_in_min']
-        self.gas_flow_max = gas_line_info['gas_flow_in_max']
+        self.gas_flow_min = gas_line_info['gas_flow_min']
+        self.gas_flow_max = gas_line_info['gas_flow_max']
         self.gas_pipeline_start_node = gas_line_info['gas_pipeline_start_node']
         self.gas_pipeline_end_node = gas_line_info['gas_pipeline_end_node']
-        self.gas_line_pack_coefficient = gas_line_info['gas_line_pack_coefficient']
-        self.gas_line_active = gas_line_info['gas_line_active']
-        self.gas_line_pack_initial = gas_line_info['gas_line_pack_initial']
-        self.weymouth = gas_line_info['weymouth']
         # ----------------- gas node info ----------------------------
+        self.PRESSURE_CONSTANT = gc['PRESSURE_CONSTANT']
         self.gas_node_num = gas_node_info['gas_node_num']
         self.gas_node_pressure_min = gas_node_info['gas_node_pressure_min']
         self.gas_node_pressure_max = gas_node_info['gas_node_pressure_max']
@@ -119,18 +123,18 @@ class PowerGas:
         self.gas_well_connection_index = gas_well_info['gas_well_connection_index']
         self.well_cost = gas_well_info['well_cost']
         # ------------------- gas transient START ---------------------------
-        # tao / delta_h <= 1 / c
-        self.time_count_per_second = pipelineConfig['tc']
+        self.time_count_per_second = pipelineConfig['tc']        # tao / delta_h <= 1 / c
         self.pipeline_length = pipelineConfig['L']
         self.w_average = pipelineConfig['w_av']
         self.c1 = pipelineConfig['c1']
         self.demeter = pipelineConfig['dij']        # this is pipeline Demeter
         self.lamb_da = pipelineConfig['Lambda']  # this is fraction coefficient
-        self.time_counts = pipelineConfig['Time']    # 暂态时间slot
-        self.T = self.time_counts
+
+        self.time_counts = pipelineConfig['Time_all']    # 暂态时间slot
+        self.T_long = pipelineConfig['T_long']
+
+        self.T = self.time_counts    # T is the alias of time all
         self.form_matrix()
-
-
         # config the model
         self.model = gurobi.Model()
 
@@ -237,7 +241,7 @@ class PowerGas:
         self.generate_matrix_ab()
         self.generate_matrix_cd()
 
-    def build_model_var(self):
+    def build_original_model_var(self):
         # build power system variables
         self.power_gen = self.model.addVars(
             self.gen_num, self.T,
@@ -314,8 +318,10 @@ class PowerGas:
             name='gas_well_transient_output'
         ))
 
-    def primaryProblem(self):
-        # ----------- node power balance -----------------
+    def buildBasePrimaryProblem(self):
+        # ----------- 1. add Vars ---------------------------
+        self.build_original_model_var()
+        # ----------- 2.1 node power balance -----------------
         for node in range(self.bus_num):
             for time in range(self.T):
                 self.model.addConstr(
@@ -338,7 +344,7 @@ class PowerGas:
                         sum(self.line_react_flow[np.where(np.array(self.line_start_point) == node), time].flatten()),
                     sense=gurobi.GRB.EQUAL,
                     name='react_balance')
-        # ----------- line voltage drop ------------------
+        # ----------- 2.2 line voltage drop ------------------
         for i in range(self.line_num):
             start_point, end_point = self.line_start_point[i], self.line_end_point[i]
             resistance, reactance = self.line_resistance[i], self.line_reactance[i]
@@ -362,6 +368,7 @@ class PowerGas:
         self.Matrix_ab[self.Matrix_ab <= 1e-10] = 0
         self.Matrix_cd[self.Matrix_cd <= 1e-10] = 0
 
+        # ====> 2.3 two port pipeline [gas system transient]
         print('======> finish 7.1')
         for t in range(self.T):
             for line in range(self.gas_line_num):
@@ -374,12 +381,17 @@ class PowerGas:
                 end_pipeline_pressure = self.end_pipeline_pressure[line]
                 flow2pressure1 = np.hstack((end_pipeline_flow, start_pipeline_pressure))
                 print('=======> finish 7.1.1')
-                self.model.addConstr(start_pipeline_flow[t] ==
-                                    sum(self.Matrix_ab[t][self.node_counts - 1] * flow2pressure1), name='c18')
-                self.model.addConstr(end_pipeline_pressure[t] ==
-                                    sum(self.Matrix_cd[t][self.node_counts - 1] * flow2pressure1), name='c17')
+                # self.model.addConstr(start_pipeline_flow[t] ==
+                #                     sum(self.Matrix_ab[t][self.node_counts - 1] * flow2pressure1), name='c18')
+                # self.model.addConstr(end_pipeline_pressure[t] ==
+                #                     sum(self.Matrix_cd[t][self.node_counts - 1] * flow2pressure1), name='c17)
 
-        # ====> node gas balance [gas system transient]
+                # self.model.addConstr(start_pipeline_flow[t] ==
+                #                      sum(self.Matrix_ab[t][self.node_counts - 1] * flow2pressure1), name='c18')
+                # self.model.addConstr(end_pipeline_pressure[t] ==
+                #                      sum(self.Matrix_cd[t][self.node_counts - 1] * flow2pressure1), name='c17')
+
+        # ====> 2.4 node gas balance [gas system transient]
         print('======> finish 7.2')
         for t in range(self.T):
             for node in range(self.gas_node_num):
@@ -392,7 +404,7 @@ class PowerGas:
                     sum(self.well_in_tran[       np.where(self.gas_well_connection_index == node)].flatten()),
                     name='c19')
 
-        # ====> node pressure balance [gas system transient]
+        # ====> 2.5 node pressure balance [gas system transient]
         print('======> finish 7.4')
         for t in range(self.T):
             for node in range(self.gas_node_num):
@@ -425,7 +437,7 @@ class PowerGas:
                         self.start_pipeline_pressure[start_line_first, t], name='c25'
                     )
 
-        # ====> gas generator transient [gas system transient]
+        # ====> 2.6 gas generator transient [gas system transient]
         print('======> finish 7.3')
         for t in range(self.T):
             for gen in range(self.gas_generator_num):
@@ -438,7 +450,7 @@ class PowerGas:
                     0, name='c31'
                 )
 
-        # ====> node pressure specify [gas system transient]
+        # ====> 2.7 node pressure specify [gas system transient]
         print('======> finish 7.5')
         for t in range(self.T):
             for well in range(self.gas_well_num):
@@ -449,21 +461,307 @@ class PowerGas:
                 for end_line in end_lines:
                     self.model.addConstr(
                         self.end_pipeline_pressure[end_line, t] ==
-                        PRESSURE_CONSTANT, name='c26'
+                        self.PRESSURE_CONSTANT, name='c26'
                     )
                 for start_line in start_lines:
                     self.model.addConstr(
                         self.start_pipeline_pressure[start_line, t] ==
-                        PRESSURE_CONSTANT, name='c27'
+                        self.PRESSURE_CONSTANT, name='c27'
                     )
 
+        # --------------- 3 set objective ----------------
+        self.model.setObjective(0)
+
     def feasibleProblem(self):
+        self.dualGen = GenDual(self.model)
+        dG = self.dualGen
+
+        # ====> Two port network of gas pipeline [gas system transient]
+        self.Matrix_ab[self.Matrix_ab <= 1e-10] = 0
+        self.Matrix_cd[self.Matrix_cd <= 1e-10] = 0
+
+        print('======> finish 7.1')
+        for t in range(self.T):
+            for line in range(self.gas_line_num):
+                # 1              2
+                # o ------------ o
+                # start          end
+                start_pipeline_flow = self.start_pipeline_flow[line]
+                end_pipeline_flow = self.end_pipeline_flow[line]
+                start_pipeline_pressure = self.start_pipeline_pressure[line]
+                end_pipeline_pressure = self.end_pipeline_pressure[line]
+                flow2pressure1 = np.hstack((end_pipeline_flow, start_pipeline_pressure))
+                print('=======> finish 7.1.1')
+                dG.addConstr(start_pipeline_flow[t],
+                             sum(self.Matrix_ab[t][self.node_counts - 1] * flow2pressure1),
+                             sense='==')
+                dG.addConstr(end_pipeline_pressure[t],
+                             sum(self.Matrix_cd[t][self.node_counts - 1] * flow2pressure1),
+                             sense='==')
+
+        # ====> node gas balance [gas system transient]
+        print('======> finish 7.2')
+        for t in range(self.T):
+            for node in range(self.gas_node_num):
+                dG.addConstr(
+                    sum(self.start_pipeline_flow[np.where(self.gas_pipeline_start_node == node), t].flatten()) +
+                    sum(self.gas_load_trans[     np.where(self.gas_load_connection_index == node), t].flatten()) +
+                    sum(self.gas_generator_tran[ np.where(self.gas_generator_connection_index == node), t].flatten()),
+                    sum(self.end_pipeline_flow[  np.where(self.gas_pipeline_end_node == node)].flatten()) +
+                    sum(self.well_in_tran[       np.where(self.gas_well_connection_index == node)].flatten()),
+                    sense='==')
+
+        # ====> node pressure balance [gas system transient]
+        print('======> finish 7.4')
+        for t in range(self.T):
+            for node in range(self.gas_node_num):
+                start_flag, end_flag = False, False
+                start_line_first, end_line_first = -99, -99
+
+                end_lines = np.where(self.gas_pipeline_end_node == node)[0].tolist()
+                if len(end_lines) > 0:
+                    end_line_first = end_lines.pop(0)
+                    end_flag = True
+
+                start_lines = np.where(self.gas_pipeline_start_node == node)[0].tolist()
+                if len(start_lines) > 0:
+                    start_line_first = start_lines.pop(0)
+                    start_flag = True
+
+                for end_line in end_lines:
+                    dG.addConstr(
+                        self.end_pipeline_pressure[end_line, t],
+                        self.end_pipeline_pressure[end_line_first, t],
+                        sense='=='
+                    )
+                for start_line in start_lines:
+                    dG.addConstr(
+                        self.start_pipeline_pressure[start_line, t],
+                        self.start_pipeline_pressure[start_line_first, t],
+                        sense='=='
+                    )
+                if start_flag and end_flag:
+                    dG.addConstr(
+                        self.end_pipeline_pressure[end_line_first, t],
+                        self.start_pipeline_pressure[start_line_first, t],
+                        sense='=='
+                    )
+
+        # ====> gas generator transient [gas system transient]
+        print('======> finish 7.3')
+        for t in range(self.T):
+            for gen in range(self.gas_generator_num):
+                dG.addConstr(
+                    self.gas_generator_tran[gen, t] + self.gas_generator_tran_reserve[gen, t],
+                    self.gas_generator_gas_capacity[gen], name='c22',
+                    sense='<='
+                )
+                dG.addConstr(
+                    self.gas_generator_tran[gen, t] - self.gas_generator_tran_reserve[gen, t],
+                    0,
+                    sense='>='
+                )
+
+        # ====> node pressure specify [gas system transient]
+        print('======> finish 7.5')
+        for t in range(self.T):
+            for well in range(self.gas_well_num):
+                node = self.gas_well_connection_index[well]
+                end_lines = np.where(self.gas_pipeline_end_node == node)[0].tolist()
+                start_lines = np.where(self.gas_pipeline_start_node == node)[0].tolist()
+
+                for end_line in end_lines:
+                    dG.addConstr(
+                        self.end_pipeline_pressure[end_line, t],
+                        self.PRESSURE_CONSTANT,
+                        sense='=='
+                    )
+                for start_line in start_lines:
+                    dG.addConstr(
+                        self.start_pipeline_pressure[start_line, t],
+                        self.PRESSURE_CONSTANT,
+                        sense='=='
+                    )
+
+
+    def appendConstraint(self):
+        pass
+
+
+
+
+class GenDual:
+    def __init__(self, originalModel):
+        self.origModel = originalModel
+        self.dualModel = gurobi.Model()
+        self.exprs = []
+        self.senses = []
+        self.dualVars = []
+        self.origVars = []
+        self.consCount = 0
+        self.i = []
+        self.j = []
+        self.v = []
+        self.valueLeft = []
+        self.coeffMatrix = None
+
+    def addConstr(self, exprLeft, exprRight, sense):
+        if sense == '<=':
+            expr = exprLeft - exprRight
+            self.exprs.append(expr)
+            self.senses.append('<=')
+
+        elif sense == '>=':
+            expr = exprRight - exprLeft
+            self.exprs.append(expr)
+            self.senses.append('<=')
+
+        elif sense == '==':
+            expr = exprLeft - exprRight
+            # self.exprs.append(expr)
+            # self.senses.append('==')
+            self.addConstr(expr, 0, '<=')
+            self.addConstr(expr, 0, '>=')
+        else:
+            assert 0
+
+        dual_var = self.dualModel.addVar()
+        self.dualVars.append(dual_var)
+
+        cons_vars, coeff, constant = self.getVars(expr)
+        # self.origVars.extend(cons_vars)
+        self.extendVars(self.origVars, cons_vars)
+
+        rowIndex = self.consCount
+        self.consCount = self.consCount + 1
+
+        colIndex = self.getVarIndex(cons_vars)
+
+        self.i.extend([rowIndex] * len(colIndex))
+        self.j.extend(colIndex)
+        self.v.extend(coeff)
+
+        self.valueLeft.append(constant * -1)
+
+    def getDual(self):
+        from scipy.sparse import csr_matrix
+        sp = csr_matrix((self.v, (self.i, self.j)), shape=(self.consCount, len(self.origVars)))
+        self.coeffMatrix = np.array(sp.toarray())
+        self.varArray = np.array(self.origVars)
+        self.valueArray = np.array(self.valueLeft)
+
+        for i in range(len(self.origVars)):
+            dual_expr_left = 0
+            dual_expr_right = 0
+            if self.senses[i] == '==' :
+                self.dualModel.addConstr(dual_expr_left <= dual_expr_right)
+            if self.senses[i] == '<=' :
+                self.dualModel.addConstr(dual_expr_left <= dual_expr_right)
+
+        return self.dualModel
+
+    def getVars(self, expression):
+        assert(isinstance(expression, gurobi.LinExpr))
+        self.doNothing = 1
+        expr = expression
+        varSize = expr.size()
+        allVars = []
+        allCoeff = []
+
+        for index in range(varSize):
+            allVars.append(expr.getVar(index))
+            allCoeff.append(expr.getCoeff(index))
+
+        constant = expr.getConstant()
+        return allVars, allCoeff, constant
+
+    def extendVars(self, listTo, all_vars):
+        for var in all_vars:
+            index = self.getIndex(listTo, var)
+            if index == -1:
+                listTo.append(var)
+
+    def getVarIndex(self, cons_vars):
+        self.origModel.update()
+        indices = []
+        for var in cons_vars:
+            pos = self.getIndex(self.origVars, var)
+            indices.append(pos)
+        return indices
+
+    def getIndex(self, varList, var):
+        self.doNothing = 1
+        for ind, varAt in enumerate(varList):
+            if varAt.sameAs(var):
+                return ind
+        return -1
+
+    def addObjective(self, expr):
+        from scipy.sparse import csr_matrix
+        obj_var_len = expr.size()
+        obj_i = []
+        obj_j = []
+        obj_v = []
+        for index in range(obj_var_len):
+            var = expr.getVar(index)
+            ind = self.getIndex(var)
+            coe = expr.getCoeff(index)
+            if ind == -1:
+                assert 0
+            obj_i.append(0)
+            obj_j.append(ind)
+            obj_v.append(coe)
+        sp = csr_matrix((obj_v, (obj_i, obj_j)), shape=(1, len(self.origVars)))
+        self.objCoeffMatrix = np.array(sp.toarray())
+
+
+
+
+# model = gurobi.Model()
+# varSS = model.addVars(9)
+# mm = GenDual(model)
+# # mm.addConstraint(gurobi.quicksum(varSS), 0, '<=')
+# mm.addConstr(varSS[0] + varSS[1] + varSS[2] + varSS[3], varSS[5] - varSS[7], '<=')
+# mm.addConstr(varSS[2] + varSS[3] + varSS[4] + varSS[5], varSS[6] + varSS[8], '>=')
+# mm.getDual()
+
+
+
+
+if __name__ == '__main__':
+    pg = PowerGas(*getConfig())
+    pg.buildBasePrimaryProblem()
+    pg.model.optimize()
 
 
 
 
 
-    def addConstraint(self):
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
