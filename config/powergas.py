@@ -32,17 +32,14 @@ load_power_min = load_power_min[:, 0:T].tolist()
 load_power_max = np.array(load_share).reshape((-1, 1)).dot(load_power_max_raw.reshape((1, -1)))
 load_power_max = load_power_max[:, 0:T].tolist()
 
-load_gas_min_raw = [(np.array([0.1, 0.11, 0.12, 0.11, 0.12, 0.11, 0.12, 0.11, 0.10, 0.10])*10).tolist()]
-load_gas_max_raw = [(np.array([0.2, 0.21, 0.22, 0.21, 0.23, 0.24, 0.21, 0.26, 0.23, 0.24])*10).tolist()]
-load_gas_min = (np.array(load_gas_min_raw))[:, 0:T].tolist()*3
-load_gas_max = (np.array(load_gas_max_raw))[:, 0:T].tolist()*3
+
 ##
 #  (GRID)                                                                  (GRID)
-# d-12-g o                                                                   5-  o
+# d-12-g o                                                                   5w- o
 #        |↓                                                                      ↘╲
-#    d-2 |↓ <-  1     <-    0-gg ->   d-3  ->    d-4                      0   <-   ↘╲      ->    l-2
+#    d-2 |↓ <-  1     <-    0-gg ->   d-3  ->    d-4                      0l  <-   ↘╲      ->    l-2
 #        o--------o---------o----------o-----------o                      0-----------o----------o
-#       ▲                  |                                                       ↓ | 1-w          ▼
+#       ▲                  |                                                       ↓ | 1          ▼
 #       d-7 <-    6   <-    |5-g ->  d-8   ->     d-9                               ↓ |
 #        o--------o---------o----------o-----------o                              l-3 o
 #               ↓ |       ↓ |                                                       ↓ |
@@ -74,7 +71,7 @@ line_end_point =   [1, 2, 3, 4, 5, 8, 9, 6, 7, 10, 11, 1,  ]  # end
 # line_end_point =   [1, 2, 3, 4, 5, ]  # end
 line_current_flow_capacity = 10
 
-
+#######################################################################
 gas_node_num =              6
 node_pressure_min = 4e4 * 0 / 4e3
 node_pressure_max = 4e6 / 4e3
@@ -87,8 +84,19 @@ well_min =                 [0, ]
 well_max =                 [20, ]
 well_index =               [5, ]  # 6
 
-gas_load_num =              3
-gas_load_index =           [2, 3, 4, ]  # 5
+# gas_load_num =              4
+gas_load_index =           [0, 2, 3, 4, ]  # 5
+gas_load_num =  len(gas_load_index)
+
+
+
+load_gas_min_raw = [(np.array([0.1, 0.11, 0.12, 0.11, 0.12, 0.11, 0.12, 0.11, 0.10, 0.10])*10).tolist()]
+load_gas_max_raw = [(np.array([0.2, 0.21, 0.22, 0.21, 0.23, 0.24, 0.21, 0.26, 0.23, 0.24])*10).tolist()]
+load_gas_min = (np.array(load_gas_min_raw))[:, 0:T].tolist() * gas_load_num
+load_gas_max = (np.array(load_gas_max_raw))[:, 0:T].tolist() * gas_load_num
+
+
+
 
 gas_line_num =              5
 gas_line_start_point =     [1, 1, 1, 3, 5, ]
@@ -173,7 +181,7 @@ gas_load_info = {
     'gas_load_num': gas_load_num,
     'gas_load_connection_index': gas_load_index,
     'gas_load_min': load_gas_min,
-    'gas_load_max': load_gas_min,
+    'gas_load_max': load_gas_max,
 }
 
 gas_generator_info = {
