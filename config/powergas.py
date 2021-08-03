@@ -5,8 +5,8 @@ import numpy as np
 
 a = 2
 
-T = 3             # this is power time slot
-time_point = 20
+T = 2             # this is power time slot
+time_point = 10
 delta_time = 1
 node_voltage_min = 0.6
 node_voltage_max = 1.6
@@ -73,7 +73,7 @@ line_current_flow_capacity = 10
 
 #######################################################################
 gas_node_num =              6
-node_pressure_min = 4e4 * 0 / 4e3
+node_pressure_min = 4e4 * 1 / 4e3
 node_pressure_max = 4e6 / 4e3
 # node_pressure_max = 5e1 / 4e3
 PRESSURE_CONSTANT = 4e5 / 4e3
@@ -102,7 +102,7 @@ gas_line_num =              5
 gas_line_start_point =     [1, 1, 1, 3, 5, ]
 gas_line_end_point =       [0, 2, 3, 4, 1, ]
 
-gen_gas_capacity =         [0, ]
+gen_gas_capacity =         [5, ]
 gen_gas_power_min =        [0, ]
 gen_gas_power_index =      [2, ]
 gen_gas_gas_index =        [2, ]
