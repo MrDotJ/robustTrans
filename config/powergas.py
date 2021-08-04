@@ -73,10 +73,10 @@ line_current_flow_capacity = 10
 
 #######################################################################
 gas_node_num =              6
-node_pressure_min = 4e4 * 1 / 4e3
-node_pressure_max = 4e6 / 4e3
+node_pressure_min = 4e4 / 4e3 * 5    # 50
+node_pressure_max = 8e5 / 4e3        # 200
 # node_pressure_max = 5e1 / 4e3
-PRESSURE_CONSTANT = 4e5 / 4e3
+PRESSURE_CONSTANT = 4e5 / 4e3       # 100
 # PRESSURE_CONSTANT = 4e0 / 4e3
 
 gas_well_num =              1
@@ -90,8 +90,8 @@ gas_load_num =  len(gas_load_index)
 
 
 
-load_gas_min_raw = [(np.array([0.1, 0.11, 0.12, 0.11, 0.12, 0.11, 0.12, 0.11, 0.10, 0.10])*10).tolist()]
-load_gas_max_raw = [(np.array([0.2, 0.21, 0.22, 0.21, 0.23, 0.24, 0.21, 0.26, 0.23, 0.24])*10).tolist()]
+load_gas_min_raw = [(np.array([0.1, 0.21, 0.22, 0.11, 0.12, 0.11, 0.12, 0.11, 0.10, 0.10])*10).tolist()]
+load_gas_max_raw = [(np.array([0.2, 0.41, 0.42, 0.21, 0.23, 0.24, 0.21, 0.26, 0.23, 0.24])*10).tolist()]
 load_gas_min = (np.array(load_gas_min_raw))[:, 0:T].tolist() * gas_load_num
 load_gas_max = (np.array(load_gas_max_raw))[:, 0:T].tolist() * gas_load_num
 
