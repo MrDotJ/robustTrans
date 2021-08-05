@@ -1333,6 +1333,7 @@ def main():
     # pg.feasibleProblem()
     # pg.appendConstraint()
 
+
     for i in range(5):
         print('Stage 1 : preSolve : [ Iteration: ' + str(i) + ']')
         pg.model.optimize()
@@ -1343,6 +1344,8 @@ def main():
             return
         else:
             print('    ===> Stage 3 : Append constraints : feasible test result : [' + str(feasibleTest) + ']')
+            scenarioLess.append(pg.zLess[2])
+            scenarioGreat.append(pg.zGreat[2])
             pg.appendConstraint()
 
 
@@ -1353,5 +1356,33 @@ if __name__ == '__main__':
     # testGetDual()
     # assert 0
     pg = PowerGas(*getConfig())
+    scenarioLess = []
+    scenarioGreat = []
 
     main()
+
+
+
+def drawScenario():
+    import matplotlib.pyplot as plt
+    plt.subplot(3, 2, 1)
+    plt.plot(scenarioGreat[0])
+    plt.plot(scenarioLess[0])
+
+    plt.subplot(3, 2, 2)
+    plt.plot(scenarioGreat[1])
+    plt.plot(scenarioLess[1])
+
+    plt.subplot(3, 2, 3)
+    plt.plot(scenarioGreat[2])
+    plt.plot(scenarioLess[2])
+
+    plt.subplot(3, 2, 4)
+    plt.plot(scenarioGreat[3])
+    plt.plot(scenarioLess[3])
+
+    plt.subplot(3, 2, 5)
+    plt.plot(scenarioGreat[4])
+    plt.plot(scenarioLess[4])
+
+    plt.show()

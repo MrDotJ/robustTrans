@@ -3,7 +3,6 @@
   <component name="ChangeListManager">
     <list default="true" id="9dc776ab-d3cc-4b6b-bae7-5042e3559190" name="Default Changelist" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/config/powergas.py" beforeDir="false" afterPath="$PROJECT_DIR$/config/powergas.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/go2.py" beforeDir="false" afterPath="$PROJECT_DIR$/go2.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -161,7 +160,7 @@
       <workItem from="1627966239330" duration="7043000" />
       <workItem from="1628009546912" duration="40000" />
       <workItem from="1628014057757" duration="31000" />
-      <workItem from="1628071985955" duration="14469000" />
+      <workItem from="1628071985955" duration="18385000" />
     </task>
     <servers />
   </component>
@@ -170,13 +169,6 @@
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
-      <breakpoints>
-        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
-          <url>file://$PROJECT_DIR$/go2.py</url>
-          <line>1008</line>
-          <option name="timeStamp" value="3" />
-        </line-breakpoint>
-      </breakpoints>
       <default-breakpoints>
         <breakpoint type="python-exception">
           <properties notifyOnTerminate="true" exception="BaseException">
