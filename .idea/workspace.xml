@@ -3,6 +3,8 @@
   <component name="ChangeListManager">
     <list default="true" id="9dc776ab-d3cc-4b6b-bae7-5042e3559190" name="Default Changelist" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/abcd.pkl" beforeDir="false" afterPath="$PROJECT_DIR$/abcd.pkl" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/config/powergas.py" beforeDir="false" afterPath="$PROJECT_DIR$/config/powergas.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/go2.py" beforeDir="false" afterPath="$PROJECT_DIR$/go2.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -28,6 +30,13 @@
       <filtered-out-file-type name="COMMIT_BY_MESSAGE" />
     </file-type-list>
   </component>
+  <component name="HighlightingSettingsPerFile">
+    <setting file="file://$PROJECT_DIR$/go2.py" root0="FORCE_HIGHLIGHTING" />
+    <setting file="file://$USER_HOME$/Desktop/GP.py" root0="FORCE_HIGHLIGHTING" />
+    <setting file="file://$PROJECT_DIR$/config/powergas.py" root0="FORCE_HIGHLIGHTING" />
+    <setting file="file://$USER_HOME$/Documents/GP.py" root0="FORCE_HIGHLIGHTING" />
+    <setting file="file://$USER_HOME$/Documents/config.py" root0="FORCE_HIGHLIGHTING" />
+  </component>
   <component name="ProjectId" id="1vOYEmt83TksSNBALSnmCG4SkER" />
   <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
   <component name="ProjectViewState">
@@ -47,7 +56,45 @@
       <recent name="E:\program\robustTrans\config" />
     </key>
   </component>
-  <component name="RunManager" selected="Python.go2">
+  <component name="RunManager" selected="Python.GP (1)">
+    <configuration name="GP (1)" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="robustTrans" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$USER_HOME$/Documents" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="SCRIPT_NAME" value="$USER_HOME$/Documents/GP.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="true" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
+    <configuration name="GP" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
+      <module name="robustTrans" />
+      <option name="INTERPRETER_OPTIONS" value="" />
+      <option name="PARENT_ENVS" value="true" />
+      <option name="SDK_HOME" value="" />
+      <option name="WORKING_DIRECTORY" value="$USER_HOME$/Desktop" />
+      <option name="IS_MODULE_SDK" value="false" />
+      <option name="ADD_CONTENT_ROOTS" value="true" />
+      <option name="ADD_SOURCE_ROOTS" value="true" />
+      <EXTENSION ID="PythonCoverageRunConfigurationExtension" runner="coverage.py" />
+      <option name="SCRIPT_NAME" value="$USER_HOME$/Desktop/GP.py" />
+      <option name="PARAMETERS" value="" />
+      <option name="SHOW_COMMAND_LINE" value="true" />
+      <option name="EMULATE_TERMINAL" value="false" />
+      <option name="MODULE_MODE" value="false" />
+      <option name="REDIRECT_INPUT" value="false" />
+      <option name="INPUT_FILE" value="" />
+      <method v="2" />
+    </configuration>
     <configuration default="true" type="PythonConfigurationType" factoryName="Python">
       <module name="robustTrans" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -135,7 +182,9 @@
     </configuration>
     <recent_temporary>
       <list>
+        <item itemvalue="Python.GP (1)" />
         <item itemvalue="Python.go2" />
+        <item itemvalue="Python.GP" />
         <item itemvalue="Python.go3" />
         <item itemvalue="Python.go" />
       </list>
@@ -160,7 +209,7 @@
       <workItem from="1627966239330" duration="7043000" />
       <workItem from="1628009546912" duration="40000" />
       <workItem from="1628014057757" duration="31000" />
-      <workItem from="1628071985955" duration="18385000" />
+      <workItem from="1628071985955" duration="35732000" />
     </task>
     <servers />
   </component>

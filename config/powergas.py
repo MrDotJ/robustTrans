@@ -6,7 +6,7 @@ import numpy as np
 a = 2
 
 T = 2             # this is power time slot
-time_point = 10
+time_point = 600
 delta_time = 1
 node_voltage_min = 0.6
 node_voltage_max = 1.6

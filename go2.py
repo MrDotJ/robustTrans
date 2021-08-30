@@ -538,8 +538,8 @@ class PowerGas:
         #             name='flow_relax')
 
         # ====> Two port network of gas pipeline [gas system transient]
-        self.Matrix_ab[np.abs(self.Matrix_ab) <= 1e-6 ] = 0
-        self.Matrix_cd[np.abs(self.Matrix_cd) <= 1e-6 ] = 0
+        # self.Matrix_ab[np.abs(self.Matrix_ab) <= 1e-6 ] = 0
+        # self.Matrix_cd[np.abs(self.Matrix_cd) <= 1e-6 ] = 0
 
         def myDot2(matrix, syms, row, y_ranges):
             value = matrix[row][self.node_counts - 1][y_ranges]
@@ -548,6 +548,8 @@ class PowerGas:
 
         # ====> 2.3 two port pipeline [gas system transient]
         # print('======> finish 7.1')
+        # import time
+        # t1 = time.time()
         x, y = np.nonzero(self.Matrix_ab[:, self.node_counts - 1, :])
         x2, y2 = np.nonzero(self.Matrix_cd[:, self.node_counts - 1, :])
         #transient constriant
@@ -578,7 +580,9 @@ class PowerGas:
                 #                      sum(self.Matrix_ab[t][self.node_counts - 1] * flow2pressure1), name='c18')
                 # self.model.addConstr(end_pipeline_pressure[t] ==
                 #                      sum(self.Matrix_cd[t][self.node_counts - 1] * flow2pressure1), name='c17')
-
+        # t2 = time.time()
+        # print(t2- t1)
+        # assert 0
         # ====> 2.4 node gas balance [gas system transient]
         # print('======> finish 7.2')
         # for t in range(self.T):
@@ -1004,26 +1008,18 @@ class PowerGas:
                                      )
 
         # print('======> Robust finish 7.2')
-        # self.sCollection = []
         for t in range(self.T):
             for node in range(self.gas_node_num):
-                # sPlus = rM.addVar()
-                # sMinus = rM.addVar()
-                # self.sCollection.append(sPlus)
-                # self.sCollection.append(sMinus)
                 self.model.addConstr(
                     sum(self.robust_end_pipeline_flow_trans[  np.where(self.gas_pipeline_end_node == node),     t].flatten()) +
                     sum(self.robust_well_in_trans[            np.where(self.gas_well_connection_index == node), t].flatten()) -
                     sum(self.robust_start_pipeline_flow_trans[np.where(self.gas_pipeline_start_node == node),   t].flatten())
-                    # sPlus - sMinus,
                     ==
-                    sum(self.robust_gas_load_trans[           np.where(self.gas_load_connection_index == node), t].flatten()) +
+                    sum(self.gas_load_trans[                  np.where(self.gas_load_connection_index == node), t].flatten()) +
                     sum((self.gas_generator_trans[np.where(self.gas_gen_index_gas == node), t] +
                         self.zGreat[node, t] * self.gas_generator_reserve_up[np.where(self.gas_gen_index_gas == node), int(t/self.time_per_T)] -
                         self.zLess[node, t ] * self.gas_generator_reserve_down[np.where(self.gas_gen_index_gas == node), int(t/self.time_per_T)]).flatten())
                 )
-                # dG.addConstr(sPlus, 0, '>=')
-                # dG.addConstr(sMinus, 0, '>=')
 
         # ====> node pressure specify [gas system transient]
         # print('======> Robust finish 7.3')
@@ -1334,13 +1330,14 @@ def main():
     # pg.appendConstraint()
 
 
-    for i in range(5):
+    for i in range(7):
         print('Stage 1 : preSolve : [ Iteration: ' + str(i) + ']')
         pg.model.optimize()
         print('    ===> Stage 1.1 : objective ' + str(pg.model.getObjective().getValue()))
         print('    ===> Stage 2 : feasibleTest : Reserve Up [' + str(to_value(pg.gas_generator_reserve_up)) + '] Reserve Down [' + str(to_value(pg.gas_generator_reserve_down)) + ']')
         feasibleTest = pg.feasibleProblem()
         if abs(feasibleTest) <= 1e-3:
+            print('    ===> Stage 3 : Terminate : feasible test result : [' + str(feasibleTest) + ']')
             return
         else:
             print('    ===> Stage 3 : Append constraints : feasible test result : [' + str(feasibleTest) + ']')
@@ -1365,24 +1362,13 @@ if __name__ == '__main__':
 
 def drawScenario():
     import matplotlib.pyplot as plt
-    plt.subplot(3, 2, 1)
-    plt.plot(scenarioGreat[0])
-    plt.plot(scenarioLess[0])
 
-    plt.subplot(3, 2, 2)
-    plt.plot(scenarioGreat[1])
-    plt.plot(scenarioLess[1])
+    sLen = len(scenarioLess)
+    row = int(sLen / 2) if sLen % 2 == 0 else int(sLen / 2 + 1)
 
-    plt.subplot(3, 2, 3)
-    plt.plot(scenarioGreat[2])
-    plt.plot(scenarioLess[2])
-
-    plt.subplot(3, 2, 4)
-    plt.plot(scenarioGreat[3])
-    plt.plot(scenarioLess[3])
-
-    plt.subplot(3, 2, 5)
-    plt.plot(scenarioGreat[4])
-    plt.plot(scenarioLess[4])
+    for i in range(sLen):
+        plt.subplot(row, 2, i+1)
+        plt.plot(scenarioGreat[i])
+        plt.plot(scenarioLess[i])
 
     plt.show()
