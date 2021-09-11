@@ -2,8 +2,9 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="9dc776ab-d3cc-4b6b-bae7-5042e3559190" name="Default Changelist" comment="">
+      <change afterPath="$PROJECT_DIR$/config/powergas1.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/abcd.pkl" beforeDir="false" afterPath="$PROJECT_DIR$/abcd.pkl" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/abcd.pkl" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/config/powergas.py" beforeDir="false" afterPath="$PROJECT_DIR$/config/powergas.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/go2.py" beforeDir="false" afterPath="$PROJECT_DIR$/go2.py" afterDir="false" />
     </list>
@@ -32,10 +33,9 @@
   </component>
   <component name="HighlightingSettingsPerFile">
     <setting file="file://$PROJECT_DIR$/go2.py" root0="FORCE_HIGHLIGHTING" />
-    <setting file="file://$USER_HOME$/Desktop/GP.py" root0="FORCE_HIGHLIGHTING" />
-    <setting file="file://$PROJECT_DIR$/config/powergas.py" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$USER_HOME$/Documents/GP.py" root0="FORCE_HIGHLIGHTING" />
     <setting file="file://$USER_HOME$/Documents/config.py" root0="FORCE_HIGHLIGHTING" />
+    <setting file="file://$PROJECT_DIR$/config/powergas.py" root0="FORCE_HIGHLIGHTING" />
   </component>
   <component name="ProjectId" id="1vOYEmt83TksSNBALSnmCG4SkER" />
   <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
@@ -56,11 +56,14 @@
       <recent name="E:\program\robustTrans\config" />
     </key>
   </component>
-  <component name="RunManager" selected="Python.GP (1)">
+  <component name="RunManager" selected="Python.go2">
     <configuration name="GP (1)" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="robustTrans" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
       <option name="SDK_HOME" value="" />
       <option name="WORKING_DIRECTORY" value="$USER_HOME$/Documents" />
       <option name="IS_MODULE_SDK" value="false" />
@@ -80,6 +83,9 @@
       <module name="robustTrans" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
       <option name="SDK_HOME" value="" />
       <option name="WORKING_DIRECTORY" value="$USER_HOME$/Desktop" />
       <option name="IS_MODULE_SDK" value="false" />
@@ -182,8 +188,8 @@
     </configuration>
     <recent_temporary>
       <list>
-        <item itemvalue="Python.GP (1)" />
         <item itemvalue="Python.go2" />
+        <item itemvalue="Python.GP (1)" />
         <item itemvalue="Python.GP" />
         <item itemvalue="Python.go3" />
         <item itemvalue="Python.go" />
@@ -210,6 +216,12 @@
       <workItem from="1628009546912" duration="40000" />
       <workItem from="1628014057757" duration="31000" />
       <workItem from="1628071985955" duration="35732000" />
+      <workItem from="1630459956037" duration="430000" />
+      <workItem from="1630460417325" duration="6616000" />
+      <workItem from="1630572760916" duration="21704000" />
+      <workItem from="1630854251087" duration="1491000" />
+      <workItem from="1630983431396" duration="8567000" />
+      <workItem from="1631374888979" duration="3248000" />
     </task>
     <servers />
   </component>
@@ -229,6 +241,6 @@
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/robustTrans$go.coverage" NAME="go Coverage Results" MODIFIED="1626623999701" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
-    <SUITE FILE_PATH="coverage/robustTrans$go2.coverage" NAME="go2 Coverage Results" MODIFIED="1628091188679" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/robustTrans$go2.coverage" NAME="go2 Coverage Results" MODIFIED="1630681419874" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
   </component>
 </project>

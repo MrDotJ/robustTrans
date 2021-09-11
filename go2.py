@@ -1,6 +1,6 @@
 import numpy as np
 import gurobipy as gurobi
-from config.powergas import getConfig
+from config.powergas1 import getConfig
 import time
 
 def tonp(vars_gur) -> np.array:
@@ -146,9 +146,9 @@ INF = gurobi.GRB.INFINITY
 #  2, dual problem solve
 #  3, add constraints algorithm
 
-
 class PowerGas:
     def __init__(self, powerConfig, gasConfig, pipelineConfig):
+        self.file_index = 0
         pc = powerConfig
         gc = gasConfig
         thermal_gen_info = pc['thermal_gen_info']
@@ -231,7 +231,6 @@ class PowerGas:
         self.form_matrix()
         # config the model
         self.model = gurobi.Model()
-        self.model.setParam('OutputFlag', 0)
 
 
     def generate_trans_coeff(self):
@@ -538,8 +537,12 @@ class PowerGas:
         #             name='flow_relax')
 
         # ====> Two port network of gas pipeline [gas system transient]
-        # self.Matrix_ab[np.abs(self.Matrix_ab) <= 1e-6 ] = 0
-        # self.Matrix_cd[np.abs(self.Matrix_cd) <= 1e-6 ] = 0
+
+        self.Matrix_ab[np.abs(self.Matrix_ab) <= 1e-8 ] = 0
+        self.Matrix_cd[np.abs(self.Matrix_cd) <= 1e-8 ] = 0
+
+        self.Matrix_ab = np.around(self.Matrix_ab, 8)
+        self.Matrix_cd = np.around(self.Matrix_cd, 8)
 
         def myDot2(matrix, syms, row, y_ranges):
             value = matrix[row][self.node_counts - 1][y_ranges]
@@ -547,12 +550,8 @@ class PowerGas:
             return sum(value * sym)
 
         # ====> 2.3 two port pipeline [gas system transient]
-        # print('======> finish 7.1')
-        # import time
-        # t1 = time.time()
         x, y = np.nonzero(self.Matrix_ab[:, self.node_counts - 1, :])
         x2, y2 = np.nonzero(self.Matrix_cd[:, self.node_counts - 1, :])
-        #transient constriant
         for t in range(self.T):
             y_range = y[np.where(x == t)]  # 0 1
             y_range2 = y2[np.where(x2 == t)]
@@ -576,29 +575,13 @@ class PowerGas:
 
                 self.model.addConstr(end_pipeline_pressure[t] ==
                                      myDot2(self.Matrix_cd, flow2pressure1, t, y_range2), name='c17')
-                # self.model.addConstr(start_pipeline_flow[t] ==
-                #                      sum(self.Matrix_ab[t][self.node_counts - 1] * flow2pressure1), name='c18')
-                # self.model.addConstr(end_pipeline_pressure[t] ==
-                #                      sum(self.Matrix_cd[t][self.node_counts - 1] * flow2pressure1), name='c17')
-        # t2 = time.time()
-        # print(t2- t1)
+        #
+        #         print(myDot2(self.Matrix_ab, flow2pressure1, t, y_range))
+        #         print(myDot2(self.Matrix_cd, flow2pressure1, t, y_range2))
+        #
+        #
         # assert 0
         # ====> 2.4 node gas balance [gas system transient]
-        # print('======> finish 7.2')
-        # for t in range(self.T):
-        #     for node in range(self.gas_node_num):
-        #         self.model.addConstr(
-        #             sum(self.start_pipeline_flow_trans[np.where(self.gas_pipeline_start_node == node),   t].flatten()) +
-        #             sum(self.gas_load_trans[           np.where(self.gas_load_connection_index == node), t].flatten()) +
-        #             sum(self.gas_generator_trans[      np.where(self.gas_gen_index_gas == node),         t].flatten())
-        #             ==
-        #             sum(self.end_pipeline_flow_trans[  np.where(self.gas_pipeline_end_node == node),     t].flatten()) +
-        #             sum(self.start_pipeline_flow_trans[np.where(self.gas_pipeline_start_node == node)
-        #                                                if node in self.gas_well_connection_index
-        #                                                else tuple(np.array([])),                         t].flatten()),
-        #             name='c19')
-
-        #kcl
         for t in range(self.T):
             for node in range(self.gas_node_num):
                 self.model.addConstr(
@@ -628,42 +611,40 @@ class PowerGas:
         for t in range(self.T):
             for well in range(self.gas_well_num):
                 node = self.gas_well_connection_index[well]
-
                 self.model.addConstr(
                     self.node_pressure_trans[node, t] ==
                     self.PRESSURE_CONSTANT, name='c26'
                 )
 
-
-
         objs = []
 
         for load in range(self.load_num):
-            for time in range(self.T_long):
-                objs.append((self.power_load[load, time] - (self.load_power_max[load, time] + self.load_power_min[load, time]) / 2) *
-                            (self.power_load[load, time] - (self.load_power_max[load, time] + self.load_power_min[load, time]) / 2))
-                objs.append((self.react_load[load, time] - (self.load_react_max[load, time] + self.load_react_min[load, time]) / 2) *
-                            (self.react_load[load, time] - (self.load_react_max[load, time] + self.load_react_min[load, time]) / 2))
+            for t in range(self.T_long):
+                objs.append((self.power_load[load, t] - (self.load_power_max[load, t] + self.load_power_min[load, t]) / 2) *
+                            (self.power_load[load, t] - (self.load_power_max[load, t] + self.load_power_min[load, t]) / 2))
+                objs.append((self.react_load[load, t] - (self.load_react_max[load, t] + self.load_react_min[load, t]) / 2) *
+                            (self.react_load[load, t] - (self.load_react_max[load, t] + self.load_react_min[load, t]) / 2))
 
         for gen in range(self.gen_num):
-            for time in range(self.T_long):
-                objs.append(self.gen_cost_a[gen] * self.power_gen[gen, time] * self.power_gen[gen, time])
-                objs.append(self.gen_cost_b[gen] * self.power_gen[gen, time])
+            for t in range(self.T_long):
+                objs.append(self.gen_cost_a[gen] * self.power_gen[gen, t] * self.power_gen[gen, t])
+                objs.append(self.gen_cost_b[gen] * self.power_gen[gen, t])
                 objs.append(self.gen_cost_c[gen])
 
         for well in range(self.gas_well_num):
-            for time in range(self.T):
-                objs.append(self.start_pipeline_flow_trans[4, time] * self.well_cost / self.time_counts)
+            for t in range(self.T):
+                objs.append(self.well_in_trans[well, t] * self.well_cost / self.time_counts)
 
         for load in range(self.gas_load_num):
-            for time in range(self.T_long):
-                objs.append((self.gas_load[load, time] - (self.gas_load_min[load, time] + self.gas_load_max[load, time]) / 2) *
-                            (self.gas_load[load, time] - (self.gas_load_min[load, time] + self.gas_load_max[load, time]) / 2))
+            for t in range(self.T_long):
+                objs.append((self.gas_load[load, t] - (self.gas_load_min[load, t] + self.gas_load_max[load, t]) / 2) *
+                            (self.gas_load[load, t] - (self.gas_load_min[load, t] + self.gas_load_max[load, t]) / 2))
 
         for gen in range(self.gas_generator_num):
-            for time in range(self.T_long):
-                objs.append(-1 * self.gas_generator_reserve_up[gen, time] - self.gas_generator_reserve_down[gen, time])
+            for t in range(self.T_long):
+                objs.append(-1 * self.gas_generator_reserve_up[gen, t] - self.gas_generator_reserve_down[gen, t])
         # --------------- 3 set objective ----------------
+        self.model.setParam('OutputFlag', 0)
         self.model.setObjective(sum(objs))
 
     def buildRobustVars(self, robustModel):
@@ -734,10 +715,12 @@ class PowerGas:
                 dG.addConstr(start_pipeline_flow[t],
                              myDot2(self.Matrix_ab, flow2pressure1, t, y_range),
                              sense='==',
+                             name='ab[' + str(line) + ',' + str(t) + ']'
                              )
                 dG.addConstr(end_pipeline_pressure[t],
                              myDot2(self.Matrix_cd, flow2pressure1, t, y_range2),
                              sense='==',
+                             name='cd[' + str(line) + ',' + str(t) + ']'
                              )
 
         # print('======> Robust finish 7.2')
@@ -759,21 +742,22 @@ class PowerGas:
                     sum(self.robust_gas_load_trans[           np.where(self.gas_load_connection_index == node), t].flatten()),
                     sense='==',
                     appendIndex=True,
-                    showTime=False
+                    showTime=False,
+                    name='nodeBalance[' + str(node) + ',' + str(t) + ']'
                 )
-                dG.addConstr(sPlus, 0, '>=')
-                dG.addConstr(sMinus, 0, '>=')
+                dG.addConstr(sPlus, 0, '>=', name='sPZero[' + str(node) + ',' + str(t) + ']')
+                dG.addConstr(sMinus, 0, '>=', name='sMZero[' + str(node) + ',' + str(t) + ']')
 
         # ====> node pressure specify [gas system transient]
         # print('======> Robust finish 7.3')
         for t in range(self.T):
             for well in range(self.gas_well_num):
                 node = self.gas_well_connection_index[well]
-
                 dG.addConstr(
                     self.robust_node_pressure_trans[node, t],
                     self.first_stage_node_pressure_trans[node, t],
-                    sense='=='
+                    sense='==',
+                    name='WellPress[' + str(well) + ',' + str(t) + ']'
                 )
 
         # =====> node pressure max/min limit
@@ -783,13 +767,15 @@ class PowerGas:
                 dG.addConstr(
                     self.robust_node_pressure_trans[node, t],
                     self.gas_node_pressure_min,
-                    sense='>='
+                    sense='>=',
+                    name='nodePressMin[' + str(node) + ',' + str(t) + ']'
                 )
 
                 dG.addConstr(
                     self.robust_node_pressure_trans[node, t],
                     self.gas_node_pressure_max,
-                    sense='<='
+                    sense='<=',
+                    name='nodePressMax[' + str(node) + ',' + str(t) + ']'
                 )
 
         for t in range(self.T):
@@ -797,25 +783,29 @@ class PowerGas:
                 dG.addConstr(
                     self.robust_start_pipeline_flow_trans[line, t],
                     self.gas_flow_min,
-                    sense='>='
+                    sense='>=',
+                    name='startFlowMin[' + str(line) + ',' + str(t) + ']'
                 )
 
                 dG.addConstr(
                     self.robust_start_pipeline_flow_trans[line, t],
                     self.gas_flow_max,
-                    sense='<='
+                    sense='<=',
+                    name='startFlowMax[' + str(line) + ',' + str(t) + ']'
                 )
 
                 dG.addConstr(
                     self.robust_end_pipeline_flow_trans[line, t],
                     self.gas_flow_min,
-                    sense='>='
+                    sense='>=',
+                    name='endFlowMin[' + str(line) + ',' + str(t) + ']'
                 )
 
                 dG.addConstr(
                     self.robust_end_pipeline_flow_trans[line, t],
                     self.gas_flow_max,
-                    sense='<='
+                    sense='<=',
+                    name='endFlowMax[' + str(line) + ',' + str(t) + ']'
                 )
 
         # print('======> Robust finish 7.5')
@@ -855,8 +845,8 @@ class PowerGas:
                 # 这是 第几个 燃气轮机连接在 当前节点的 集合
                 windIndexList = np.where(self.gas_gen_index_gas == node)[0].tolist()
 
-                z1 = dualModel.addVars(len(expr1), vtype=gurobi.GRB.BINARY)
-                z2 = dualModel.addVars(len(expr1), vtype=gurobi.GRB.BINARY)
+                z1 = dualModel.addVars(len(expr1), vtype=gurobi.GRB.BINARY, name='gasUpBin')
+                z2 = dualModel.addVars(len(expr1), vtype=gurobi.GRB.BINARY, name='gasDownBin')
                 for i in range(len(expr1)):
                     dualModel.addConstr(z1[i] + z2[i] <= 1)
 
@@ -875,8 +865,8 @@ class PowerGas:
                     # gasRobust = gasBase + z1[index] * gasUpper - z2[index] * gasDown
                     # dualModel.addConstr(z1 + z2 <= 1)
 
-                    v1 = dualModel.addVar(lb=-1*INF, ub=0)
-                    v2 = dualModel.addVar(lb=-1*INF, ub=0)
+                    v1 = dualModel.addVar(lb=-1*INF, ub=0, name='gasUpAuxGreat['   + str(node) + ',' + str(index) + ',' + str(t) + ']')
+                    v2 = dualModel.addVar(lb=-1*INF, ub=0, name='gasDownAuxGreat[' + str(node) + ',' + str(index) + ',' + str(t) + ']')
                     self.zGreatV1[node, t, index] = v1
                     self.zGreatV2[node, t, index] = v2
                     # v1 = z1[index] * dual
@@ -885,16 +875,16 @@ class PowerGas:
                     # temp2                    = gasBase * dual + gasUpper * v1 - gasDown * v2
 
                     # linear     v1 = z1 * dual1
-                    dualModel.addConstr(-1 * BIGM * z1[index] <= v1)
-                    dualModel.addConstr(v1 <= 0)
-                    dualModel.addConstr(-1 * BIGM * (1 - z1[index]) <= (dual1 - v1))
-                    dualModel.addConstr((dual1 - v1) <= 0)
+                    dualModel.addConstr(-1 * BIGM * z1[index] <= v1,                  name='relaxGreat1[' + str(node) + ',' + str(index) + ',' + str(t) + ']')
+                    dualModel.addConstr(v1 <= 0,                                      name='relaxGreat2[' + str(node) + ',' + str(index) + ',' + str(t) + ']')
+                    dualModel.addConstr(-1 * BIGM * (1 - z1[index]) <= (dual1 - v1),  name='relaxGreat3[' + str(node) + ',' + str(index) + ',' + str(t) + ']')
+                    dualModel.addConstr((dual1 - v1) <= 0,                            name='relaxGreat4[' + str(node) + ',' + str(index) + ',' + str(t) + ']')
 
                     # linear    v2 = z2 * dual1
-                    dualModel.addConstr(-1 * BIGM * z2[index] <= v2)
-                    dualModel.addConstr(v2 <= 0)
-                    dualModel.addConstr(-1 * BIGM * (1 - z2[index]) <= (dual1 - v2))
-                    dualModel.addConstr((dual1 - v2) <= 0)
+                    dualModel.addConstr(-1 * BIGM * z2[index] <= v2,                  name='relaxGreat5[' + str(node) + ',' + str(index) + ',' + str(t) + ']')
+                    dualModel.addConstr(v2 <= 0,                                      name='relaxGreat6[' + str(node) + ',' + str(index) + ',' + str(t) + ']')
+                    dualModel.addConstr(-1 * BIGM * (1 - z2[index]) <= (dual1 - v2),  name='relaxGreat7[' + str(node) + ',' + str(index) + ',' + str(t) + ']')
+                    dualModel.addConstr((dual1 - v2) <= 0,                            name='relaxGreat8[' + str(node) + ',' + str(index) + ',' + str(t) + ']')
 
                     # dualModel.addConstr(v1 <= 0)
                     # dualModel.addConstr(dual <= v1)
@@ -922,8 +912,8 @@ class PowerGas:
                     # gasRobust = gasBase + z1[index] * gasUpper - z2[index] * gasDown
                     # dualModel.addConstr(z1 + z2 <= 1)
 
-                    v1 = dualModel.addVar(lb=-1*INF, ub=0)
-                    v2 = dualModel.addVar(lb=-1*INF, ub=0)
+                    v1 = dualModel.addVar(lb=-1*INF, ub=0, name='gasUpAuxLess['   + str(node) + ',' + str(index) + ',' + str(t) + ']')
+                    v2 = dualModel.addVar(lb=-1*INF, ub=0, name='gasDownAuxLess[' + str(node) + ',' + str(index) + ',' + str(t) + ']')
                     self.zLessV1[node, t, index] = v1
                     self.zLessV2[node, t, index] = v2
                     # v1 = z1[index] * dual
@@ -932,16 +922,16 @@ class PowerGas:
                     # temp2                    = gasBase * dual + gasUpper * v1 - gasDown * v2
 
                     # linear     v1 = z1 * dual2
-                    dualModel.addConstr(-1 * BIGM * z1[index] <= v1)
-                    dualModel.addConstr(v1 <= 0)
-                    dualModel.addConstr(-1 * BIGM * (1 - z1[index]) <= (dual2 - v1))
-                    dualModel.addConstr((dual2 - v1) <= 0)
+                    dualModel.addConstr(-1 * BIGM * z1[index] <= v1,                 name='relaxLess1[' + str(node) + ',' + str(index) + ',' + str(t) + ']')
+                    dualModel.addConstr(v1 <= 0,                                     name='relaxLess2[' + str(node) + ',' + str(index) + ',' + str(t) + ']')
+                    dualModel.addConstr(-1 * BIGM * (1 - z1[index]) <= (dual2 - v1), name='relaxLess3[' + str(node) + ',' + str(index) + ',' + str(t) + ']')
+                    dualModel.addConstr((dual2 - v1) <= 0,                           name='relaxLess4[' + str(node) + ',' + str(index) + ',' + str(t) + ']')
 
                     # linear    v2 = z2 * dual2
-                    dualModel.addConstr(-1 * BIGM * z2[index] <= v2)
-                    dualModel.addConstr(v2 <= 0)
-                    dualModel.addConstr(-1 * BIGM * (1 - z2[index]) <= (dual2 - v2))
-                    dualModel.addConstr((dual2 - v2) <= 0)
+                    dualModel.addConstr(-1 * BIGM * z2[index] <= v2,                 name='relaxLess5[' + str(node) + ',' + str(index) + ',' + str(t) + ']')
+                    dualModel.addConstr(v2 <= 0,                                     name='relaxLess6[' + str(node) + ',' + str(index) + ',' + str(t) + ']')
+                    dualModel.addConstr(-1 * BIGM * (1 - z2[index]) <= (dual2 - v2), name='relaxLess7[' + str(node) + ',' + str(index) + ',' + str(t) + ']')
+                    dualModel.addConstr((dual2 - v2) <= 0,                           name='relaxLess8[' + str(node) + ',' + str(index) + ',' + str(t) + ']')
 
                     # dualModel.addConstr(v1 <= 0)
                     # dualModel.addConstr(dual <= v1)
@@ -954,10 +944,27 @@ class PowerGas:
                     # dualModel.addConstr(v2 <= -1 * z2 + dual + 1)
                     oobbjj.append(-1 * dual2 * gasBase - gasUpper * v1 + gasDown * v2)
 
+        MAGIC_NUM = 25
+        for node in range(self.gas_node_num):
+            for gas in range(self.gas_generator_num):
+                for t in range(self.T):
+                    dualModel.addConstr(
+                        self.zGreat[node, t, gas] ==
+                        self.zGreat[node, int(t/MAGIC_NUM) * MAGIC_NUM, gas])
+                    dualModel.addConstr(
+                        self.zLess[node, t, gas] ==
+                        self.zLess[node, int(t/MAGIC_NUM) * MAGIC_NUM, gas])
+
         assert dualIndexCount == len(dualIndexList)
         dualModel.setObjective( dualModel.getObjective() + sum(oobbjj) )
 
         dualModel.setParam('OutputFlag', 0)
+        # # print("=====> statistic start ")
+        # dualModel.update()
+        # dualModel.write(f'RobustModel_{self.file_index}.lp')
+        # self.file_index = self.file_index + 1
+        # # print("=====> statistic end ")
+        # dualModel.tune()
         dualModel.optimize()
 
         self.zGreat = to_value(self.zGreat)
@@ -1079,6 +1086,7 @@ class PowerGas:
         plt.plot(to_value(self.node_pressure_trans)[4])
         plt.show()
 
+
 class GenDual:
     def __init__(self, originalModel, addOrigModel=False):
         self.dualModel = gurobi.Model()
@@ -1097,7 +1105,7 @@ class GenDual:
         self.addOrigModel = addOrigModel
         # self.robustWindOutput = tonp(self.dualModel.addVars(self.origModel.gas_generator_num, self.origModel.T))
 
-    def addConstr(self, exprLeft, exprRight, sense, appendIndex=False,
+    def addConstr(self, exprLeft, exprRight, sense, name='XXXXXXXXX', appendIndex=False,
                   coeffInput=None, varInput=None, constantInput=None, showTime=False):
         if sense == '<=':
             expr = exprLeft - exprRight
@@ -1121,8 +1129,8 @@ class GenDual:
             expr = exprLeft - exprRight
             # self.exprs.append(expr)
             # self.senses.append('==')
-            self.addConstr(expr, 0, '>=', appendIndex, coeffInput, varInput, constantInput, showTime)
-            self.addConstr(expr, 0, '<=', appendIndex, coeffInput, varInput, constantInput, showTime)
+            self.addConstr(expr, 0, '>=', 'Great'+name, appendIndex, coeffInput, varInput, constantInput, showTime)
+            self.addConstr(expr, 0, '<=', 'Less'+name, appendIndex, coeffInput, varInput, constantInput, showTime)
             return
         else:
             assert 0
@@ -1130,7 +1138,7 @@ class GenDual:
         expr = -1 * expr # guarantee expr >= 0
         t1 = time.time()
         # one dual var per constraint
-        dual_var = self.dualModel.addVar(lb=-1 * gurobi.GRB.INFINITY, ub=0)
+        dual_var = self.dualModel.addVar(lb=-1 * gurobi.GRB.INFINITY, ub=0, name='Dual'+name)
         self.dualVars.append(dual_var)
 
         if coeffInput is None:
@@ -1275,20 +1283,20 @@ class GenDual:
 
 def testGetDual():
     model = gurobi.Model()
-    x1 = model.addVar()
-    x2 = model.addVar()
-    x3 = model.addVar()
-    x4 = model.addVar()
-    x5 = model.addVar()
+    x1 = model.addVar(name='x1')
+    x2 = model.addVar(name='x2')
+    x3 = model.addVar(name='x3')
+    x4 = model.addVar(name='x4')
+    x5 = model.addVar(name='x5')
 
     gD = GenDual(model, addOrigModel=True)
-    gD.addConstr(42.4 * x1 + 3 * x2, 90, '<=')
-    gD.addConstr(2.3 * x1 + x2, 80, '<=')
-    gD.addConstr(2.2 * x3 + 33*x2, 80, '==')
-    gD.addConstr(x1 + 4*x2, 25, '<=')
-    gD.addConstr(x1, 0, '>=')
-    gD.addConstr(x2, 0, '>=')
-    gD.addConstr(x3, 0, '>=')
+    gD.addConstr(42.4 * x1 + 3 * x2, 90, '<=', name='c1')
+    gD.addConstr(2.3 * x1 + x2, 80, '<=', name='c2')
+    gD.addConstr(2.2 * x3 + 33*x2, 80, '==', name='c3')
+    gD.addConstr(x1 + 4*x2, 25, '<=', name='c4')
+    gD.addConstr(x1, 0, '>=', name='c5')
+    gD.addConstr(x2, 0, '>=', name='c6')
+    gD.addConstr(x3, 0, '>=', name='c7')
     #
     gD.addObjectiveMin(-3.5 * x1 - 4 * x2)
 ################
@@ -1314,6 +1322,8 @@ def testGetDual():
     dual = gD.getDual()
     dual.update()
 
+    model.write('originalModel.lp')
+    dual.write('dualModel.lp')
     dual.optimize()
     model.optimize()
 
@@ -1335,7 +1345,10 @@ def main():
         pg.model.optimize()
         print('    ===> Stage 1.1 : objective ' + str(pg.model.getObjective().getValue()))
         print('    ===> Stage 2 : feasibleTest : Reserve Up [' + str(to_value(pg.gas_generator_reserve_up)) + '] Reserve Down [' + str(to_value(pg.gas_generator_reserve_down)) + ']')
+        t1 = time.time()
         feasibleTest = pg.feasibleProblem()
+        t2 = time.time()
+        print('Feasibel Time : ' + str(t2 - t1))
         if abs(feasibleTest) <= 1e-3:
             print('    ===> Stage 3 : Terminate : feasible test result : [' + str(feasibleTest) + ']')
             return
