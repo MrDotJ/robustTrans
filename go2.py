@@ -140,7 +140,6 @@ def to_value_tuple(vars_gur):
         return re
 INF = gurobi.GRB.INFINITY
 
-
 # TODO:
 #  1, original problem solve
 #  2, dual problem solve
@@ -148,6 +147,7 @@ INF = gurobi.GRB.INFINITY
 
 class PowerGas:
     def __init__(self, powerConfig, gasConfig, pipelineConfig):
+        self.picture_index = 1
         self.file_index = 0
         pc = powerConfig
         gc = gasConfig
@@ -538,11 +538,11 @@ class PowerGas:
 
         # ====> Two port network of gas pipeline [gas system transient]
 
-        self.Matrix_ab[np.abs(self.Matrix_ab) <= 1e-8 ] = 0
-        self.Matrix_cd[np.abs(self.Matrix_cd) <= 1e-8 ] = 0
+        self.Matrix_ab[np.abs(self.Matrix_ab) <= 1e-5 ] = 0
+        self.Matrix_cd[np.abs(self.Matrix_cd) <= 1e-5 ] = 0
 
-        self.Matrix_ab = np.around(self.Matrix_ab, 8)
-        self.Matrix_cd = np.around(self.Matrix_cd, 8)
+        self.Matrix_ab = np.around(self.Matrix_ab, 5)
+        self.Matrix_cd = np.around(self.Matrix_cd, 5)
 
         def myDot2(matrix, syms, row, y_ranges):
             value = matrix[row][self.node_counts - 1][y_ranges]
@@ -575,6 +575,8 @@ class PowerGas:
 
                 self.model.addConstr(end_pipeline_pressure[t] ==
                                      myDot2(self.Matrix_cd, flow2pressure1, t, y_range2), name='c17')
+
+
         #
         #         print(myDot2(self.Matrix_ab, flow2pressure1, t, y_range))
         #         print(myDot2(self.Matrix_cd, flow2pressure1, t, y_range2))
@@ -644,7 +646,9 @@ class PowerGas:
             for t in range(self.T_long):
                 objs.append(-1 * self.gas_generator_reserve_up[gen, t] - self.gas_generator_reserve_down[gen, t])
         # --------------- 3 set objective ----------------
-        self.model.setParam('OutputFlag', 0)
+        # self.model.setParam('OutputFlag', 0)
+        self.model.setParam('BarHomogeneous', 1)
+        # self.model.setParam('Method', 1)
         self.model.setObjective(sum(objs))
 
     def buildRobustVars(self, robustModel):
@@ -817,7 +821,7 @@ class PowerGas:
         # add additional robust objective part
         dualIndexList = dG.robustIndex
         dualIndexCount = 0
-        BIGM = 1e6
+        BIGM = 1e3
         oobbjj = []
 
         self.zGreat = np.empty((self.gas_node_num, self.T, self.gas_generator_num), dtype=np.object)
@@ -944,7 +948,7 @@ class PowerGas:
                     # dualModel.addConstr(v2 <= -1 * z2 + dual + 1)
                     oobbjj.append(-1 * dual2 * gasBase - gasUpper * v1 + gasDown * v2)
 
-        MAGIC_NUM = 25
+        MAGIC_NUM = int(10)
         for node in range(self.gas_node_num):
             for gas in range(self.gas_generator_num):
                 for t in range(self.T):
@@ -958,13 +962,14 @@ class PowerGas:
         assert dualIndexCount == len(dualIndexList)
         dualModel.setObjective( dualModel.getObjective() + sum(oobbjj) )
 
-        dualModel.setParam('OutputFlag', 0)
+        # dualModel.setParam('OutputFlag', 0)
         # # print("=====> statistic start ")
         # dualModel.update()
         # dualModel.write(f'RobustModel_{self.file_index}.lp')
         # self.file_index = self.file_index + 1
         # # print("=====> statistic end ")
         # dualModel.tune()
+        dualModel.setParam("MIPFocus", 1)
         dualModel.optimize()
 
         self.zGreat = to_value(self.zGreat)
@@ -1079,13 +1084,48 @@ class PowerGas:
 
     def drawPressure(self):
         import matplotlib.pyplot as plt
-        plt.plot(to_value(self.node_pressure_trans)[0])
-        plt.plot(to_value(self.node_pressure_trans)[1])
-        plt.plot(to_value(self.node_pressure_trans)[2])
-        plt.plot(to_value(self.node_pressure_trans)[3])
-        plt.plot(to_value(self.node_pressure_trans)[4])
+
+        n = self.gas_node_num
+        row = int(n / 2) if int(n % 2) == 0 else int(n / 2) + 1
+        column = 2
+
+        for i in range(n):
+            plt.subplot(row, column, i + 1)
+            plt.plot(to_value(self.node_pressure_trans)[i])
+        plt.title('Iter' + str(self.picture_index))
+        self.picture_index  = self.picture_index + 1
         plt.show()
 
+    def testMatrix(self):
+        import matplotlib.pyplot as plt
+
+        self.Matrix_ab[np.abs(self.Matrix_ab) <= 1e-5 ] = 0
+        self.Matrix_cd[np.abs(self.Matrix_cd) <= 1e-5 ] = 0
+
+        self.Matrix_ab = np.around(self.Matrix_ab, 5)
+        self.Matrix_cd = np.around(self.Matrix_cd, 5)
+
+
+        ab = self.Matrix_ab[:, self.node_counts - 1, :]
+        cd = self.Matrix_cd[:, self.node_counts - 1, :]
+        shape = ab.shape
+
+        time_length = int(shape[0])
+
+        flow2 = np.hstack((np.ones(int(time_length/3)) * 1.5,
+                          3 * np.ones(time_length - int(time_length / 3))))
+        pressure1 = np.ones(time_length) * 100
+
+        f2p1 = np.hstack((flow2, pressure1))
+
+        f1 = np.dot(ab, f2p1)
+        p2 = np.dot(cd, f2p1)
+
+        plt.subplot(1, 2, 1)
+        plt.plot(f1)
+        plt.subplot(1, 2, 2)
+        plt.plot(p2)
+        plt.show()
 
 class GenDual:
     def __init__(self, originalModel, addOrigModel=False):
@@ -1340,17 +1380,24 @@ def main():
     # pg.appendConstraint()
 
 
-    for i in range(7):
+    for i in range(17):
         print('Stage 1 : preSolve : [ Iteration: ' + str(i) + ']')
+        pg.model.setParam('OutputFlag', 0)
+        pg.model.setParam("LogFile", "log" + str(i) + '.txt')
         pg.model.optimize()
+        pg.drawPressure()
         print('    ===> Stage 1.1 : objective ' + str(pg.model.getObjective().getValue()))
         print('    ===> Stage 2 : feasibleTest : Reserve Up [' + str(to_value(pg.gas_generator_reserve_up)) + '] Reserve Down [' + str(to_value(pg.gas_generator_reserve_down)) + ']')
         t1 = time.time()
         feasibleTest = pg.feasibleProblem()
         t2 = time.time()
         print('Feasibel Time : ' + str(t2 - t1))
-        if abs(feasibleTest) <= 1e-3:
+        if abs(feasibleTest) <= 1e-1:
             print('    ===> Stage 3 : Terminate : feasible test result : [' + str(feasibleTest) + ']')
+            print('    ===> feasibleTest : Reserve Up [' + str(
+                to_value(pg.gas_generator_reserve_up)) + '] Reserve Down [' + str(
+                to_value(pg.gas_generator_reserve_down)) + ']')
+
             return
         else:
             print('    ===> Stage 3 : Append constraints : feasible test result : [' + str(feasibleTest) + ']')
@@ -1366,6 +1413,11 @@ if __name__ == '__main__':
     # testGetDual()
     # assert 0
     pg = PowerGas(*getConfig())
+
+    # pg.testMatrix()
+    # assert 0
+
+
     scenarioLess = []
     scenarioGreat = []
 
