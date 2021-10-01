@@ -4,9 +4,19 @@
     <list default="true" id="9dc776ab-d3cc-4b6b-bae7-5042e3559190" name="Default Changelist" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/abcd.pkl" beforeDir="false" afterPath="$PROJECT_DIR$/abcd.pkl" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/config/powergas.py" beforeDir="false" afterPath="$PROJECT_DIR$/config/powergas.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/config/powergas1.py" beforeDir="false" afterPath="$PROJECT_DIR$/config/powergas1.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/dualModel.lp" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/dualModel.mps" beforeDir="false" />
       <change beforePath="$PROJECT_DIR$/go2.py" beforeDir="false" afterPath="$PROJECT_DIR$/go2.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/log0.txt" beforeDir="false" afterPath="$PROJECT_DIR$/log0.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/log1.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log2.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log3.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log4.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log5.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log6.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log7.txt" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/log8.txt" beforeDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -149,6 +159,9 @@
       <module name="robustTrans" />
       <option name="INTERPRETER_OPTIONS" value="" />
       <option name="PARENT_ENVS" value="true" />
+      <envs>
+        <env name="PYTHONUNBUFFERED" value="1" />
+      </envs>
       <option name="SDK_HOME" value="" />
       <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$" />
       <option name="IS_MODULE_SDK" value="true" />
@@ -224,6 +237,8 @@
       <workItem from="1631374888979" duration="15728000" />
       <workItem from="1631671604208" duration="2387000" />
       <workItem from="1631760517176" duration="4068000" />
+      <workItem from="1632885326605" duration="25951000" />
+      <workItem from="1633012036097" duration="8194000" />
     </task>
     <servers />
   </component>
@@ -232,6 +247,13 @@
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
+      <breakpoints>
+        <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
+          <url>file://$PROJECT_DIR$/go2.py</url>
+          <line>925</line>
+          <option name="timeStamp" value="14" />
+        </line-breakpoint>
+      </breakpoints>
       <default-breakpoints>
         <breakpoint type="python-exception">
           <properties notifyOnTerminate="true" exception="BaseException">
@@ -243,6 +265,6 @@
   </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/robustTrans$go.coverage" NAME="go Coverage Results" MODIFIED="1626623999701" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
-    <SUITE FILE_PATH="coverage/robustTrans$go2.coverage" NAME="go2 Coverage Results" MODIFIED="1631412468622" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/robustTrans$go2.coverage" NAME="go2 Coverage Results" MODIFIED="1633095086199" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
   </component>
 </project>

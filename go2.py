@@ -360,6 +360,176 @@ class PowerGas:
                 self.C_ana = self.Matrix_cd[:, -1, 0:self.time_counts]
                 self.D_ana = self.Matrix_cd[:, -1, self.time_counts: 2 * self.time_counts]
 
+        self.generate_network_matrix()
+        self.testMatrixHaHa()
+
+    def testMatrixHaHa(self):
+        flow_load = np.vstack((np.ones((int(self.T / 3), 1)),
+                               np.ones((int(self.T / 2) - int(self.T / 3), 1)) * 3,
+                               np.ones((self.T - int(self.T / 2), 1)) * 2
+                               ))
+        gas_generator = np.ones((self.T, 1)) * 2
+        pressure_well = np.ones((self.T, 1)) * 100
+
+        len1 = flow_load.shape[0]
+        len2 = gas_generator.shape[0]
+        len3 = pressure_well.shape[0]
+
+        MldPsr = np.vstack((
+            flow_load.reshape(-1, 1),
+            gas_generator.reshape(-1, 1),
+            pressure_well.reshape(-1, 1)
+        ))
+
+        flow_source = np.zeros_like(flow_load)
+        pressure_load = np.zeros_like(flow_load)
+        pressure_generator = np.zeros_like(flow_load)
+        MsrPld = np.vstack((
+            flow_source        .reshape(-1, 1),
+            pressure_load      .reshape(-1, 1),
+            pressure_generator .reshape(-1, 1)
+        ))
+
+        YY = self.YY
+        temp = YY.dot(MldPsr)
+
+        flow_source = temp[:len1, 0] * -1
+        pressure_load = temp[len1: len1 + len2, 0]
+        pressure_generator = temp[len1+len2: , 0]
+
+        import matplotlib.pyplot as plt
+        plt.subplot(3, 1, 1)
+        plt.plot(flow_source)
+
+        plt.subplot(3, 1, 2)
+        plt.plot(pressure_load)
+
+        plt.subplot(3, 1, 3)
+        plt.plot(pressure_generator)
+        plt.show()
+
+
+    def generate_network_matrix(self):
+        # generate node-branch matrix aka Ain
+        self.node_branch_end = np.zeros((self.gas_node_num * self.T, self.gas_line_num * self.T))
+        for node in range(self.gas_node_num):
+            index = np.where(np.array(self.gas_pipeline_end_node) == node)[0]
+            row = np.zeros((self.T, self.T * self.gas_line_num))
+
+            for line in range(self.gas_line_num):
+                if line in index:
+                    row[:, line*self.T:(line+1)*self.T] = np.eye(self.T, self.T)
+
+            self.node_branch_end[node*self.T:(node+1)*self.T, :] = row
+
+        # generate node-branch matrix aka Aout
+        self.node_branch_start = np.zeros((self.gas_node_num * self.T, self.gas_line_num * self.T))
+        for node in range(self.gas_node_num):
+            index = np.where(np.array(self.gas_pipeline_start_node) == node)[0]
+            row = np.zeros((self.T, self.T * self.gas_line_num))
+
+            for line in range(self.gas_line_num):
+                if line in index:
+                    row[:, line*self.T:(line+1)*self.T] = np.eye(self.T, self.T)
+
+            self.node_branch_start[node*self.T:(node+1)*self.T, :] = row
+
+        # generate line-start-node pressure index matrix, aka Apn1
+        self.branch_node_start = np.zeros((self.gas_line_num * self.T, self.gas_node_num * self.T))
+        for line in range(self.gas_line_num):
+            start_node = self.gas_pipeline_start_node[line]
+            row = np.zeros((self.T, self.T * self.gas_node_num))
+            row[:, start_node * self.T : (start_node + 1) * self.T] = np.eye(self.T, self.T)
+
+            self.branch_node_start[line*self.T:(line+1)*self.T, :] = row
+
+        # generate line-end-node pressure index matrix, aka Apn2
+        self.branch_node_end = np.zeros((self.gas_line_num * self.T, self.gas_node_num * self.T))
+        for line in range(self.gas_line_num):
+            end_node = self.gas_pipeline_end_node[line]
+            row = np.zeros((self.T, self.T * self.gas_node_num))
+            row[:, end_node * self.T : (end_node + 1) * self.T] = np.eye(self.T, self.T)
+
+            self.branch_node_end[line*self.T:(line+1)*self.T, :] = row
+
+        A = self.A_ana
+        B = self.B_ana
+        C = self.C_ana
+        Cinv = np.linalg.inv(C)
+        D = self.D_ana
+        Ain = self.node_branch_end
+        Aout = self.node_branch_start
+        Apn1 = self.branch_node_start
+        Apn2 = self.branch_node_end
+
+        # get matrix Y
+        first = np.block([-1 * Aout, Ain])
+        second = np.block([
+            [B - A.dot(Cinv).dot(D), A.dot(Cinv)],
+            [-1 * Cinv.dot(D),       Cinv]])
+
+        import scipy.linalg as lin
+        from numpy.linalg import inv as inv
+        n = self.gas_line_num
+
+        def getFull(matrix):
+            mat = matrix.copy()
+            for i in range(n - 1):
+                mat = lin.block_diag(mat, matrix)
+            return mat
+
+        full_second = np.block([
+            [getFull(B - A.dot(Cinv).dot(D)), getFull(A.dot(Cinv))],
+            [getFull(-1 * Cinv.dot(D)),       getFull(Cinv)]
+        ])
+
+        third = np.block([
+            [Apn1],
+            [Apn2]
+        ])
+        Y = first.dot(full_second).dot(third)
+
+        # so we assume the first one node is well node
+        #              then is internal node
+        #              last is load node
+        internal_count = 1
+        # load_count = 2
+
+        Y11 = Y[0:self.T, 0:self.T]
+        Y12 = Y[0:self.T, self.T: self.T + self.T * internal_count]
+        Y13 = Y[0:self.T, self.T + self.T * internal_count : ]
+
+        Y21 = Y[self.T:self.T + self.T * internal_count, 0:self.T]
+        Y22 = Y[self.T:self.T + self.T * internal_count, self.T: self.T + self.T * internal_count]
+        Y23 = Y[self.T:self.T + self.T * internal_count, self.T + self.T * internal_count : ]
+
+        Y31 = Y[self.T + self.T * internal_count:, 0:self.T]
+        Y32 = Y[self.T + self.T * internal_count:, self.T: self.T + self.T * internal_count]
+        Y33 = Y[self.T + self.T * internal_count:, self.T + self.T * internal_count : ]
+
+        Ymm = (Y13 - Y12.dot(inv(Y22)).dot(Y23)).dot(
+               inv(Y33 - Y32.dot(inv(Y22)).dot(Y23)) )
+
+        Ymp = (Y11 - Y12.dot(inv(Y22)).dot(Y21)) - \
+              ((Y13 - Y12.dot(inv(Y22)).dot(Y23)).dot(
+               inv(Y33 - Y32.dot(inv(Y22)).dot(Y23))).dot(
+               Y31 - Y32.dot(inv(Y22)).dot(Y21)))
+
+        Ypm = inv(Y33 - Y32.dot(inv(Y22)).dot(Y23))
+
+        Ypp = -1 * (inv(Y33 - Y32.dot(inv(Y22)).dot(Y23))).dot(
+               Y31 - Y32.dot(inv(Y22)).dot(Y21))
+
+        self.Ymm = Ymm
+        self.Ymp = Ymp
+        self.Ypm = Ypm
+        self.Ypp = Ypp
+
+        self.YY = np.block([
+            [self.Ymm, self.Ymp],
+            [self.Ypm, self.Ypp]
+        ])
+
     def build_original_model_var(self):
         # build power system variables
         def getTranVars(varLong):
@@ -680,6 +850,85 @@ class PowerGas:
         self.robust_gas_load_trans = to_value(self.gas_load_trans)
         # self.robust_well_in_trans = to_value(self.well_in_trans)
         self.first_stage_node_pressure_trans = to_value(self.node_pressure_trans)
+
+    def buildRobustVarsNetwork(self, model):
+        self.robust_pressure_well              = to_value(self.node_pressure_trans[0])                         # this is known source pressure
+
+        self.robust_gas_generator_base         = to_value(self.gas_generator_trans)                                                          # this is known generator load
+        self.robust_gas_generator_reserve_up   = to_value(self.gas_generator_reserve_up)              # this is known generator reserve
+        self.robust_gas_generator_reserve_down = to_value(self.gas_generator_reserve_down)            # this is known generator reserve
+        self.robust_gas_generator              = tonp(model.addVars(self.gas_generator_num, self.T))
+
+        self.robust_flow_load                  = to_value(self.gas_load_trans)                                        # this is known load gas flow
+
+        self.robust_flow_source                = tonp(model.addVars(self.gas_well_num, self.T))                          # this is unknown source gas flow
+
+        self.robust_pressure_load              = tonp(model.addVars(self.gas_load_num, self.T))                        # this is unknown load/gen node pressure
+        self.robust_pressure_generator         = tonp(model.addVars(self.gas_generator_num, self.T))                        # this is unknown load/gen node pressure
+
+        self.zUp                               = tonp(model.addVars(self.gas_generator_num, self.T_long, vtype=gurobi.GRB.BINARY))
+        self.zDown                             = tonp(model.addVars(self.gas_generator_num, self.T_long, vtype=gurobi.GRB.BINARY))
+
+    def feasibleProblemNetwork(self):
+        # build robust var
+        self.robustModel = gurobi.Model()
+        self.dualGen = GenDual(self.robustModel)
+
+        rM = self.robustModel
+        dG = self.dualGen
+
+        self.buildRobustVarsNetwork(rM)
+        # build network constraints
+        MldPsr = np.vstack((
+            self.robust_flow_load     .reshape(-1, 1),
+            self.robust_gas_generator .reshape(-1, 1),
+            self.robust_pressure_well .reshape(-1, 1)
+        ))
+        MsrPld = np.vstack((
+            self.robust_flow_source        .reshape(-1, 1),
+            self.robust_pressure_load      .reshape(-1, 1),
+            self.robust_pressure_generator .reshape(-1, 1)
+        ))
+
+        iter_count = self.YY.shape[0]
+        for row in range(iter_count):
+            dG.addConstr(
+                MsrPld[row, 0],
+                (self.YY[row, :]).dot(MldPsr)[0],
+                sense='=='
+            )
+
+        # build gas generator output
+        for gen in range(self.gas_generator_num):
+            for t in range(self.T):
+                dG.addConstr(
+                    self.robust_gas_generator[gen, t],
+                    (self.robust_gas_generator_base[gen, t] +
+                    self.zUp[gen, int(t/self.time_per_T)] * self.robust_gas_generator_reserve_up[gen, int(t/self.time_per_T)] -
+                    self.zDown[gen, int(t/self.time_per_T)] * self.robust_gas_generator_reserve_down[gen, int(t/self.time_per_T)]),
+                    sense='=='
+                )
+        # build pressure limit
+        sCollection = []
+        for load in self.robust_pressure_load.flatten().tolist() + self.robust_pressure_generator.flatten().tolist():
+            sMin = self.robustModel.addVar()
+            sPlus = self.robustModel.addVar()
+            sCollection.append(sMin)
+            sCollection.append(sPlus)
+
+            dG.addConstr(
+                load - sMin, self.gas_node_pressure_max, sense='<='
+            )
+            dG.addConstr(
+                load + sPlus, self.gas_node_pressure_min, sense='>='
+            )
+        # build primitive objective
+        dG.addObjectiveMin(gurobi.quicksum(sCollection))
+        # add additional objective
+
+        # optimize
+        fxxk = 1
+        return fxxk
 
     def feasibleProblem(self):
         self.robustModel = gurobi.Model()
@@ -1389,7 +1638,7 @@ def main():
         print('    ===> Stage 1.1 : objective ' + str(pg.model.getObjective().getValue()))
         print('    ===> Stage 2 : feasibleTest : Reserve Up [' + str(to_value(pg.gas_generator_reserve_up)) + '] Reserve Down [' + str(to_value(pg.gas_generator_reserve_down)) + ']')
         t1 = time.time()
-        feasibleTest = pg.feasibleProblem()
+        feasibleTest = pg.feasibleProblemNetwork()
         t2 = time.time()
         print('Feasibel Time : ' + str(t2 - t1))
         if abs(feasibleTest) <= 1e-1:

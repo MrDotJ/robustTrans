@@ -5,8 +5,8 @@ import numpy as np
 
 a = 2
 
-T = 4             # this is power time slot
-time_point = 30
+T = 2             # this is power time slot
+time_point = 100
 delta_time = 1
 node_voltage_min = 0.6
 node_voltage_max = 1.6
@@ -35,11 +35,11 @@ load_power_max = load_power_max[:, 0:T].tolist()
 
 ##
 #  (GRID)                                                                  (GRID)
-# d-12-g o                                                                   3-w o
+# d-12-g o                                                                   0-w o
 #        |↓                                                                      ↘╲
-#    d-2 |↓ <-  1     <-    0-gg ->   d-3  ->    d-4                     0-l  <-   ↘╲      ->    l-1
+#    d-2 |↓ <-  1     <-    0-gg ->   d-3  ->    d-4                  2-load  <-   ↘╲      ->    3-gas-gen
 #        o--------o---------o----------o-----------o                      0-----------o----------o
-#       ▲                  |                                              ▼            2          ▼
+#       ▲                  |                                              ▼            1          ▼
 #       d-7 <-    6   <-    |5-g ->  d-8   ->     d-9
 #        o--------o---------o----------o-----------o
 #               ↓ |       ↓ |
@@ -73,7 +73,7 @@ line_current_flow_capacity = 10
 
 #######################################################################
 gas_node_num =              4
-node_pressure_min =         4e4 / 4e3 * 5    # 50
+node_pressure_min =         4e4 / 4e3 * 1    # 10
 node_pressure_max =         8e5 / 4e3        # 200
 # node_pressure_max = 5e1 / 4e3
 PRESSURE_CONSTANT =         4e5 / 4e3       # 100
@@ -82,10 +82,10 @@ PRESSURE_CONSTANT =         4e5 / 4e3       # 100
 gas_well_num =              1
 well_min =                 [0, ]
 well_max =                 [20, ]
-well_index =               [3, ]  # 6
+well_index =               [0, ]  # 6
 
-# gas_load_num =              4
-gas_load_index =           [0, 1 ]  # 5
+
+gas_load_index =           [2 ]  # 5
 gas_load_num =             len(gas_load_index)
 
 
@@ -98,14 +98,16 @@ load_gas_max = (np.array(load_gas_max_raw))[:, 0:T].tolist() * gas_load_num
 
 
 
-gas_line_num =              3
-gas_line_start_point =     [2, 2, 3 ]
-gas_line_end_point =       [0, 1, 2 ]
+gas_line_num =             gas_node_num - 1
+gas_line_start_point =     [0, 1, 1 ]
+gas_line_end_point =       [1, 2, 3 ]
 
 gen_gas_capacity =         [20, ]
 gen_gas_power_min =        [0, ]
+
 gen_gas_power_index =      [2, ]
-gen_gas_gas_index =        [2, ]
+gen_gas_gas_index =        [3, ]
+
 gen_gas_efficiency =       [1, ]
 
 line_resistance = (np.array(
