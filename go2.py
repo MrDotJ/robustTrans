@@ -852,12 +852,25 @@ class PowerGas:
         self.first_stage_node_pressure_trans = to_value(self.node_pressure_trans)
 
     def buildRobustVarsNetwork(self, model):
+        def getTranVars(varLong):
+            rows = 0
+            if isinstance(varLong, gurobi.tupledict):
+                rows = varLong.keys()[-1][0] + 1  # +1 is actual length
+            elif isinstance(varLong, np.ndarray):
+                rows = varLong.shape[0]
+            trans = np.empty((rows, self.T), dtype=np.object)
+            for row in range(rows):
+                for t in range(self.T):
+                    trans[row, t] = varLong[row, int(t / self.time_per_T)]
+            return trans
+
         self.robust_pressure_well              = to_value(self.node_pressure_trans[0])                         # this is known source pressure
 
         self.robust_gas_generator_base         = to_value(self.gas_generator_trans)                                                          # this is known generator load
         self.robust_gas_generator_reserve_up   = to_value(self.gas_generator_reserve_up)              # this is known generator reserve
         self.robust_gas_generator_reserve_down = to_value(self.gas_generator_reserve_down)            # this is known generator reserve
-        self.robust_gas_generator              = tonp(model.addVars(self.gas_generator_num, self.T))
+        self.robust_gas_generator              = tonp(model.addVars(self.gas_generator_num, self.T_long))
+        self.robust_gas_generator_trans        = getTranVars(self.robust_gas_generator)
 
         self.robust_flow_load                  = to_value(self.gas_load_trans)                                        # this is known load gas flow
 
@@ -868,6 +881,12 @@ class PowerGas:
 
         self.zUp                               = tonp(model.addVars(self.gas_generator_num, self.T_long, vtype=gurobi.GRB.BINARY))
         self.zDown                             = tonp(model.addVars(self.gas_generator_num, self.T_long, vtype=gurobi.GRB.BINARY))
+
+    def addRelaxConstraints(self, v, z, dual, BIGM, model):
+        model.addConstr(-1 * BIGM * z <= v)
+        model.addConstr(v <= 0)
+        model.addConstr(-1 * BIGM * (1 - z) <= (dual - v))
+        model.addConstr((dual - v) <= 0)
 
     def feasibleProblemNetwork(self):
         # build robust var
@@ -880,37 +899,168 @@ class PowerGas:
         self.buildRobustVarsNetwork(rM)
         # build network constraints
         MldPsr = np.vstack((
-            self.robust_flow_load     .reshape(-1, 1),
-            self.robust_gas_generator .reshape(-1, 1),
-            self.robust_pressure_well .reshape(-1, 1)
+            self.robust_flow_load           .reshape(-1, 1),         # this is known value
+            self.robust_gas_generator_trans       .reshape(-1, 1),         # this is var
+            self.robust_pressure_well       .reshape(-1, 1)          # this is known value
         ))
+        start_index = self.robust_flow_load.reshape(-1, 1).shape[0]
+        middle_index = self.robust_flow_load.reshape(-1, 1).shape[0] + self.robust_gas_generator_trans.reshape(-1, 1).shape[0]
+
         MsrPld = np.vstack((
             self.robust_flow_source        .reshape(-1, 1),
             self.robust_pressure_load      .reshape(-1, 1),
-            self.robust_pressure_generator .reshape(-1, 1)
+            self.robust_pressure_generator .reshape(-1, 1)       # all these are vars
         ))
 
+        # because of the O^2 complex of index search , so we pre-set variable index
+        dG.preset_var_index((
+            self.robust_gas_generator.reshape(-1, 1).flatten().tolist(),
+            self.robust_flow_source.reshape(-1, 1).flatten().tolist(),
+            self.robust_pressure_load.reshape(-1, 1).flatten().tolist(),
+            self.robust_pressure_generator.reshape(-1, 1).flatten().tolist()
+        ))
+        MAGIC_LIST = np.arange(self.robust_gas_generator.reshape(-1, 1).shape[0]).tolist()
+
+        map_value_index = 0
+        index_m = {}
+        self.robustModel.update()
+        for vars_preset in (
+            self.robust_gas_generator.reshape(-1, 1).flatten().tolist(),
+            self.robust_flow_source.reshape(-1, 1).flatten().tolist(),
+            self.robust_pressure_load.reshape(-1, 1).flatten().tolist(),
+            self.robust_pressure_generator.reshape(-1, 1).flatten().tolist()
+        ):
+            vars_list = vars_preset
+            for var in vars_list:
+                index_m[var] = map_value_index
+                map_value_index = map_value_index + 1
+
+        # MAGIC_LIST = [index_m[gas_gen[0]]
+        #               for gas_gen in self.robust_gas_generator_trans.reshape(-1, 1).tolist()]
+
+        print('----generate robust Step 1 ' + str(self.YY.shape[0]) + '----------------')
         iter_count = self.YY.shape[0]
         for row in range(iter_count):
+            if row % 100 == 0:
+                print('----generate robust Step 1 ' + str(row) + ' ----------------')
+            # dG.addConstr(
+            #     MsrPld[row, 0],
+            #     (self.YY[row, :]).dot(MldPsr)[0],
+            #     sense='=='
+            # )
+
+            # dG.addConstr(
+            #     MsrPld[row, 0],
+            #     (self.YY[row, :]).dot(MldPsr)[0],
+            #     sense='<='
+            # )
+            # MsrPld[row, 0] - (self.YY[row, :]).dot(MldPsr)[0] <= 0   aka C
+            #                   self.YY[row, :] <====> [ .... start ..... middle ..... ]
+            # the value part is :
+            # self.YY[row, :start]. dot( MldPsr[:start] ) +
+            # self.YY[row, middle:].dot( MldPsr[middle:] )      aka A
+            # the var part is :
+            # self.YY[start:middle].dot( MldPsr[start:middle] )  aka B
+            # so the C is equal as:
+            # MsrPld[row, 0] - ( A + B )   ===> MsrPld[row, 0] - B - A
+            # =====> [ 1, -self.YY[row, start:middle] ] * [ MsrPld[row, 0], MldPsr[start:middle] ] - A <= 0
+            # =====> [ -1, self.YY[row, start:middle] ] * [ MsrPld[row, 0], MldPst[start:middle] ] + A >= 0
+            # so:
+            # coeffInput=None, varInput=None, constantInput=None
+            coeffInput = [ -1]
+            # coeffInput.extend( (1 * np.array(self.YY[row, start_index:middle_index])).tolist() )
+            coeff = self.YY[row, start_index:middle_index]
+            coeff = coeff.reshape((self.T_long, -1))
+            coeffInput.extend( (1 * np.sum(coeff, axis=1)).tolist())
+
+            varInput =   [ MsrPld[row, 0] ]
+            varInput.extend( self.robust_gas_generator.flatten().tolist() )
+
+            varIndex =   [ index_m[MsrPld[row, 0]]]
+            varIndex. extend( MAGIC_LIST )
+
+            constantInput = 1 * (
+                self.YY[row, :start_index].dot(MldPsr[:start_index])[0] +
+                self.YY[row, middle_index:].dot(MldPsr[middle_index:])[0]
+            )
             dG.addConstr(
                 MsrPld[row, 0],
                 (self.YY[row, :]).dot(MldPsr)[0],
-                sense='=='
+                '<=',
+                name='xx',
+                appendIndex=False,
+                coeffInput=coeffInput,
+                varInput=varInput,
+                constantInput=constantInput,
+                varIndex=varIndex,
+                showTime=False
             )
 
+            # dG.addConstr(
+            #     MsrPld[row, 0],
+            #     (self.YY[row, :]).dot(MldPsr)[0],
+            #     sense='>='
+            # )
+            # MsrPld[row, 0] - (self.YY[row, :]).dot(MldPsr)[0] >= 0   aka C
+            #                   self.YY[row, :] <====> [ .... start ..... middle ..... ]
+            # the value part is :
+            # self.YY[row, :start]. dot( MldPsr[:start] ) +
+            # self.YY[row, middle:].dot( MldPsr[middle:] )      aka A
+            # the var part is :
+            # self.YY[row, start:middle].dot( MldPsr[start:middle] )  aka B
+            # so the C is equal as:
+            # MsrPld[row, 0] - ( A + B )   ===> MsrPld[row, 0] - B - A
+            # =====> [ 1, -self.YY[row, start:middle] ] * [ MsrPld[row, 0], MldPsr[start:middle] ] - A >= 0
+            # so:
+            # coeffInput=None, varInput=None, constantInput=None
+            coeffInput = [ 1]
+            # coeffInput.extend( (-1 * np.array(self.YY[row, start_index:middle_index])).tolist() )
+            coeff = self.YY[row, start_index:middle_index]
+            coeff = coeff.reshape((self.T_long, -1))
+            coeffInput.extend( (-1 * np.sum(coeff, axis=1)).tolist())
+            varInput =   [ MsrPld[row, 0] ]
+            varInput.extend( self.robust_gas_generator.flatten().tolist() )
+
+            varIndex =   [ index_m[MsrPld[row, 0]]]
+            varIndex.extend( MAGIC_LIST )
+
+            constantInput = -1 * (
+                self.YY[row, :start_index].dot(MldPsr[:start_index])[0] +
+                self.YY[row, middle_index:].dot(MldPsr[middle_index:])[0]
+            )
+            dG.addConstr(
+                MsrPld[row, 0],
+                (self.YY[row, :]).dot(MldPsr)[0],
+                '>=',
+                name='xx',
+                appendIndex=False,
+                coeffInput=coeffInput,
+                varInput=varInput,
+                constantInput=constantInput,
+                varIndex=varIndex,
+                showTime=False
+            )
+
+        print('----generate robust Step 2----------------')
         # build gas generator output
         for gen in range(self.gas_generator_num):
-            for t in range(self.T):
+            for t in range(self.T_long):
                 dG.addConstr(
                     self.robust_gas_generator[gen, t],
-                    (self.robust_gas_generator_base[gen, t] +
-                    self.zUp[gen, int(t/self.time_per_T)] * self.robust_gas_generator_reserve_up[gen, int(t/self.time_per_T)] -
-                    self.zDown[gen, int(t/self.time_per_T)] * self.robust_gas_generator_reserve_down[gen, int(t/self.time_per_T)]),
-                    sense='=='
+                    0,
+                    # (self.robust_gas_generator_base[gen, t] +
+                    # self.zUp[gen, int(t/self.time_per_T)] * self.robust_gas_generator_reserve_up[gen, int(t/self.time_per_T)] -
+                    # self.zDown[gen, int(t/self.time_per_T)] * self.robust_gas_generator_reserve_down[gen, int(t/self.time_per_T)]),
+                    sense='==',
+                    appendIndex=True
                 )
+
+        print('----generate robust Step 3----------------')
         # build pressure limit
         sCollection = []
-        for load in self.robust_pressure_load.flatten().tolist() + self.robust_pressure_generator.flatten().tolist():
+        node_collection = self.robust_pressure_load.flatten().tolist() + \
+                          self.robust_pressure_generator.flatten().tolist()
+        for load in node_collection:
             sMin = self.robustModel.addVar()
             sPlus = self.robustModel.addVar()
             sCollection.append(sMin)
@@ -922,13 +1072,145 @@ class PowerGas:
             dG.addConstr(
                 load + sPlus, self.gas_node_pressure_min, sense='>='
             )
+
         # build primitive objective
         dG.addObjectiveMin(gurobi.quicksum(sCollection))
-        # add additional objective
 
-        # optimize
-        fxxk = 1
-        return fxxk
+        # add additional objective
+        dualModel = dG.getDual()
+
+        dualIndexList = dG.robustIndex
+        dualIndexCount = 0
+        BIGM = 1e3
+        oobbjj = []
+
+
+        self.zUp = tonp(dualModel.addVars(self.gas_generator_num, self.T_long, vtype=gurobi.GRB.BINARY))
+        self.zDown = tonp(dualModel.addVars(self.gas_generator_num, self.T_long, vtype=gurobi.GRB.BINARY))
+        self.zGreatV1 = np.empty((self.gas_generator_num, self.T), dtype=np.object)
+        self.zGreatV2 = np.empty((self.gas_generator_num, self.T), dtype=np.object)
+        self.zLessV1 = np.empty((self.gas_generator_num, self.T), dtype=np.object)
+        self.zLessV2 = np.empty((self.gas_generator_num, self.T), dtype=np.object)
+
+
+        for gen in range(self.gas_generator_num):
+            for t in range(self.T_long):    # per equal constraints
+                dual1 = dG.dualVars[dualIndexList[dualIndexCount]]
+                dualIndexCount = dualIndexCount + 1
+                dual2 = dG.dualVars[dualIndexList[dualIndexCount]]
+                dualIndexCount = dualIndexCount + 1
+
+                assert not dual1.sameAs(dual2)
+
+                zUp = self.zUp[gen, int(t/self.time_per_T)]
+                zDown = self.zDown[gen, int(t/self.time_per_T)]
+                dualModel.addConstr(zUp + zDown <= 1)
+
+                # for great part
+                gasBase = self.robust_gas_generator_base[gen, t]
+                gasUpper = self.robust_gas_generator_reserve_up[gen, t]
+                gasDown = self.robust_gas_generator_reserve_down[gen, t]
+                # gasRobust = gasBase + zUp * gasUpper - zDown * gasDown
+                v1 = dualModel.addVar(lb=-1*INF, ub=0)
+                v2 = dualModel.addVar(lb=-1*INF, ub=0)
+                self.zGreatV1[gen, t] = v1
+                self.zGreatV2[gen, t] = v2
+                # v1 = zUp * dual
+                # v2 = zDown * dual
+                # temp1 = gasRobust * dual = gasBase * dual + zUp * gasUpper * dual - zDown * gasDown * dual
+                # temp2                    = gasBase * dual + gasUpper * v1 - gasDown * v2
+
+                # dualModel.addConstr(-1 * BIGM * zUp <= v1,                  )
+                # dualModel.addConstr(v1 <= 0,                                      )
+                # dualModel.addConstr(-1 * BIGM * (1 - zUp) <= (dual1 - v1),  )
+                # dualModel.addConstr((dual1 - v1) <= 0,                            )
+
+                # linear     v1 = zUp * dual1
+                self.addRelaxConstraints(v1, zUp, dual1, BIGM, dualModel)
+                # dualModel.addConstr(-1 * BIGM * zDown <= v2,                  )
+                # dualModel.addConstr(v2 <= 0,                                      )
+                # dualModel.addConstr(-1 * BIGM * (1 - zDown) <= (dual1 - v2),  )
+                # dualModel.addConstr((dual1 - v2) <= 0,                            )
+
+                # linear    v2 = zDown * dual1
+                self.addRelaxConstraints(v2, zDown, dual1, BIGM, dualModel)
+                # dualModel.addConstr(v1 <= 0)
+                # dualModel.addConstr(dual <= v1)
+                # dualModel.addConstr(-1 * z1 <= v1)
+                # dualModel.addConstr(v1 <= -1 * z1 + dual + 1)
+                #
+                # dualModel.addConstr(v2 <= 0)
+                # dualModel.addConstr(dual <= v2)
+                # dualModel.addConstr(-1 * z2 <= v2)
+                # dualModel.addConstr(v2 <= -1 * z2 + dual + 1)
+                oobbjj.append(dual1 * gasBase + gasUpper * v1 - gasDown * v2)
+
+                # for less part
+                # gasRobust = gasBase + zUp * gasUpper - zDown * gasDown
+                v1 = dualModel.addVar(lb=-1*INF, ub=0)
+                v2 = dualModel.addVar(lb=-1*INF, ub=0)
+                self.zLessV1[gen, t] = v1
+                self.zLessV2[gen, t] = v2
+                # v1 = zUp * dual
+                # v2 = zDown * dual
+                # temp1 = gasRobust * dual = gasBase * dual + zUp * gasUpper * dual - zDown * gasDown * dual
+                # temp2                    = gasBase * dual + gasUpper * v1 - gasDown * v2
+
+                # linear     v1 = zUp * dual2
+                # dualModel.addConstr(-1 * BIGM * zUp <= v1                    )
+                # dualModel.addConstr(v1 <= 0                                  )
+                # dualModel.addConstr(-1 * BIGM * (1 - zDown) <= (dual2 - v1)  )
+                # dualModel.addConstr((dual2 - v1) <= 0                        )
+
+                # linear     v1 = zUp * dual2
+                self.addRelaxConstraints(v1, zUp, dual2, BIGM, dualModel)
+                # linear    v2 = zDown * dual2
+                # dualModel.addConstr(-1 * BIGM * zDown <= v2                 )
+                # dualModel.addConstr(v2 <= 0                                 )
+                # dualModel.addConstr(-1 * BIGM * (1 - zDown) <= (dual2 - v2) )
+                # dualModel.addConstr((dual2 - v2) <= 0                       )
+
+                # linear    v2 = zDown * dual2
+                self.addRelaxConstraints(v2, zDown, dual2, BIGM, dualModel)
+                # dualModel.addConstr(v1 <= 0)
+                # dualModel.addConstr(dual <= v1)
+                # dualModel.addConstr(-1 * z1 <= v1)
+                # dualModel.addConstr(v1 <= -1 * z1 + dual + 1)
+                #
+                # dualModel.addConstr(v2 <= 0)
+                # dualModel.addConstr(dual <= v2)
+                # dualModel.addConstr(-1 * z2 <= v2)
+                # dualModel.addConstr(v2 <= -1 * z2 + dual + 1)
+                oobbjj.append(-1 * dual2 * gasBase - gasUpper * v1 + gasDown * v2)
+
+        # MAGIC_NUM = int(10)
+        # for node in range(self.gas_node_num):
+        #     for gas in range(self.gas_generator_num):
+        #         for t in range(self.T):
+        #             dualModel.addConstr(
+        #                 self.zGreat[node, t, gas] ==
+        #                 self.zGreat[node, int(t/MAGIC_NUM) * MAGIC_NUM, gas])
+        #             dualModel.addConstr(
+        #                 self.zLess[node, t, gas] ==
+        #                 self.zLess[node, int(t/MAGIC_NUM) * MAGIC_NUM, gas])
+
+        assert dualIndexCount == len(dualIndexList)
+        dualModel.setObjective( dualModel.getObjective() + sum(oobbjj) )
+
+        # dualModel.setParam('OutputFlag', 0)
+        # # print("=====> statistic start ")
+        # dualModel.update()
+        # dualModel.write(f'RobustModel_{self.file_index}.lp')
+        # self.file_index = self.file_index + 1
+        # # print("=====> statistic end ")
+        # dualModel.tune()
+        dualModel.setParam("MIPFocus", 1)
+        dualModel.optimize()
+
+        self.zGreat = to_value(self.zUp)
+        self.zLess = to_value(self.zDown)
+
+        return dualModel.getObjective().getValue()
 
     def feasibleProblem(self):
         self.robustModel = gurobi.Model()
@@ -1226,6 +1508,62 @@ class PowerGas:
 
         return dualModel.getObjective().getValue()
 
+    def addAppendVars(self):
+        self.append_pressure_well = self.node_pressure_trans[0, :]
+        self.append_gas_generator = self.model.addVars(self.gas_generator_num, self.T)
+        self.append_flow_source = self.model.addVars(self.gas_well_num, self.T)
+        self.append_pressure_load = self.model.addVars(self.gas_load_num, self.T)
+        self.append_pressure_generator = self.model.addVars(self.gas_generator_num, self.T)
+
+    def appendConstraintNetwork(self):
+        # build network constraints
+        self.addAppendVars()
+        MldPsr = np.vstack((
+            self.gas_load             .reshape(-1, 1),         # this is known value
+            self.append_gas_generator .reshape(-1, 1),         # this is var
+            self.append_pressure_well .reshape(-1, 1)          # this is known value
+        ))
+
+        MsrPld = np.vstack((
+            self.append_flow_source        .reshape(-1, 1),
+            self.append_pressure_load      .reshape(-1, 1),
+            self.append_pressure_generator .reshape(-1, 1)       # all these are vars
+        ))
+
+        print('----generate robust Step 1 ' + str(self.YY.shape[0]) + '----------------')
+        iter_count = self.YY.shape[0]
+        for row in range(iter_count):
+            self.model.addConstr(
+                MsrPld[row, 0] ==
+                (self.YY[row, :]).dot(MldPsr)[0]
+            )
+
+        print('----generate robust Step 2----------------')
+        # build gas generator output
+        for gen in range(self.gas_generator_num):
+            for t in range(self.T):
+                self.model.addConstr(
+                    self.append_gas_generator[gen, t] ==
+                    (self.gas_generator_trans[gen, t] +
+                    self.zGreat[gen, int(t/self.time_per_T)] *
+                     self.gas_generator_reserve_up[gen, int(t/self.time_per_T)] -
+                    self.zLess[gen, int(t/self.time_per_T)] *
+                     self.gas_generator_reserve_down[gen, int(t/self.time_per_T)]),
+                )
+
+        print('----generate robust Step 3----------------')
+        # build pressure limit
+        node_collection = self.append_pressure_load.flatten().tolist() + \
+                          self.append_pressure_generator.flatten().tolist()
+        for load in node_collection:
+            self.model.addConstr(
+                load <= self.gas_node_pressure_max
+            )
+            self.model.addConstr(
+                load >= self.gas_node_pressure_min
+            )
+
+
     def appendConstraint(self):
         # self.robustModel = gurobi.Model()
         # self.dualGen = GenDual(self.robustModel)
@@ -1394,8 +1732,12 @@ class GenDual:
         self.addOrigModel = addOrigModel
         # self.robustWindOutput = tonp(self.dualModel.addVars(self.origModel.gas_generator_num, self.origModel.T))
 
+    def preset_var_index(self, var_tuple: tuple):
+        for var_list in var_tuple:
+            self.origVars.extend(var_list)
+
     def addConstr(self, exprLeft, exprRight, sense, name='XXXXXXXXX', appendIndex=False,
-                  coeffInput=None, varInput=None, constantInput=None, showTime=False):
+                  coeffInput=None, varInput=None, constantInput=None, varIndex=None, showTime=False):
         if sense == '<=':
             expr = exprLeft - exprRight
             self.exprs.append(-1 * expr)
@@ -1426,6 +1768,7 @@ class GenDual:
 
         expr = -1 * expr # guarantee expr >= 0
         t1 = time.time()
+
         # one dual var per constraint
         dual_var = self.dualModel.addVar(lb=-1 * gurobi.GRB.INFINITY, ub=0, name='Dual'+name)
         self.dualVars.append(dual_var)
@@ -1434,17 +1777,17 @@ class GenDual:
             # decompose expr as (vars, coeffs, constant) WITHOUT zero-coeff
             cons_vars, coeff, constant = self.getVars(expr)
             self.assertDiffVars(cons_vars)
-        else:
+            # we maintain a original var order list
+            colIndexRet = self.extendVars(self.origVars, cons_vars)
+        else:                          # else we input all thing
             cons_vars = varInput
             coeff = coeffInput
             constant = constantInput
+            colIndexRet = varIndex
 
         if showTime:
             t2 = time.time()
             print('stage1 ====>' + str(t2 - t1))
-
-        # we maintain a original var order list
-        colIndexRet = self.extendVars(self.origVars, cons_vars)
 
         # [CONSTRUCT MATRIX] get row index, eg. the nth constraint
         rowIndex = self.consCount
@@ -1452,10 +1795,6 @@ class GenDual:
 
         # [CONSTRUCT MATRIX] get the column index, eg, the var index
         # colIndex = self.getVarIndex(cons_vars)
-
-        if showTime:
-            t3 = time.time()
-            print('stage2 ====>' + str(t3 - t2))
 
         # [CONSTRUCT MATRIX] construct the sparse one row for the matrix
         self.i.extend([rowIndex] * len(colIndexRet))
@@ -1652,7 +1991,7 @@ def main():
             print('    ===> Stage 3 : Append constraints : feasible test result : [' + str(feasibleTest) + ']')
             scenarioLess.append(pg.zLess[2])
             scenarioGreat.append(pg.zGreat[2])
-            pg.appendConstraint()
+            pg.appendConstraintNetwork()
 
 
 
