@@ -887,10 +887,183 @@ class PowerGas:
         model.addConstr(-1 * BIGM * (1 - z) <= (dual - v))
         model.addConstr((dual - v) <= 0)
 
+
+
+
+    def testOriginalFeasibelModel(self):
+        self.testModel = gurobi.Model()
+        tM = self.testModel
+
+        def getTranVars(varLong):
+            rows = 0
+            if isinstance(varLong, gurobi.tupledict):
+                rows = varLong.keys()[-1][0] + 1  # +1 is actual length
+            elif isinstance(varLong, np.ndarray):
+                rows = varLong.shape[0]
+            trans = np.empty((rows, self.T), dtype=np.object)
+            for row in range(rows):
+                for t in range(self.T):
+                    trans[row, t] = varLong[row, int(t / self.time_per_T)]
+            return trans
+
+        self.robust_pressure_well = to_value(self.node_pressure_trans[0])  # this is known source pressure
+
+        self.robust_gas_generator_base = to_value(self.gas_generator) * 1  # this is known generator load
+        self.robust_gas_generator_reserve_up = to_value(
+            self.gas_generator_reserve_up) * 0  # this is known generator reserve
+        self.robust_gas_generator_reserve_down = to_value(
+            self.gas_generator_reserve_down) * 0  # this is known generator reserve
+        self.robust_gas_generator = tonp(tM.addVars(self.gas_generator_num, self.T_long))
+        self.robust_gas_generator_trans = getTranVars(self.robust_gas_generator)
+
+        self.robust_flow_load = to_value(self.gas_load_trans)  # this is known load gas flow
+
+        self.robust_flow_source = tonp(tM.addVars(self.gas_well_num, self.T))  # this is unknown source gas flow
+
+        self.robust_pressure_load = tonp(
+            tM.addVars(self.gas_load_num, self.T))  # this is unknown load/gen node pressure
+        self.robust_pressure_generator = tonp(
+            tM.addVars(self.gas_generator_num, self.T))  # this is unknown load/gen node pressure
+
+        self.zUp = tonp(tM.addVars(self.gas_generator_num, self.T_long, vtype=gurobi.GRB.BINARY))
+        self.zDown = tonp(tM.addVars(self.gas_generator_num, self.T_long, vtype=gurobi.GRB.BINARY))
+        self.zUp[0,0] = 1
+        self.zUp[0,1] = 0
+        self.zDown[0,0] = 0
+        self.zDown[0,1] = 1
+
+        MldPsr = np.vstack((
+            self.robust_flow_load           .reshape(-1, 1),         # this is known value
+            self.robust_gas_generator_trans       .reshape(-1, 1),         # this is var
+            self.robust_pressure_well       .reshape(-1, 1)          # this is known value
+        ))
+        start_index = self.robust_flow_load.reshape(-1, 1).shape[0]
+        middle_index = self.robust_flow_load.reshape(-1, 1).shape[0] + self.robust_gas_generator_trans.reshape(-1, 1).shape[0]
+
+        MsrPld = np.vstack((
+            self.robust_flow_source        .reshape(-1, 1),
+            self.robust_pressure_load      .reshape(-1, 1),
+            self.robust_pressure_generator .reshape(-1, 1)       # all these are vars
+        ))
+
+        byPassIndex = self.robust_flow_source.reshape(-1, 1).shape[0]
+
+        # because of the O^2 complex of index search , so we pre-set variable index
+        MAGIC_LIST = np.arange(self.robust_gas_generator.reshape(-1, 1).shape[0]).tolist()
+
+        map_value_index = 0
+        index_m = {}
+        self.testModel.update()
+
+        var_preset = np.array(self.robust_gas_generator.reshape(-1, 1).flatten().tolist() +
+            self.robust_flow_source.reshape(-1, 1).flatten().tolist() +
+            self.robust_pressure_load.reshape(-1, 1).flatten().tolist() +
+            self.robust_pressure_generator.reshape(-1, 1).flatten().tolist())
+
+        for vars_preset in (
+            self.robust_gas_generator.reshape(-1, 1).flatten().tolist(),
+            self.robust_flow_source.reshape(-1, 1).flatten().tolist(),
+            self.robust_pressure_load.reshape(-1, 1).flatten().tolist(),
+            self.robust_pressure_generator.reshape(-1, 1).flatten().tolist()
+        ):
+            vars_list = vars_preset
+            for var in vars_list:
+                index_m[var] = map_value_index
+                map_value_index = map_value_index + 1
+
+        print('----generate robust Step 1 ' + str(self.YY.shape[0]) + '----------------')
+        iter_count = self.YY.shape[0]
+        for row in range(iter_count - byPassIndex):
+            row = row + byPassIndex
+            if row % 100 == 0:
+                print('----generate robust Step 1 ' + str(row) + ' ----------------')
+            # self.testModel.addConstr(
+            #     MsrPld[row, 0] ==
+            #     (self.YY[row, :]).dot(MldPsr)[0]
+            # )
+            # continue
+            coeffInput = [ -1]
+            coeff = self.YY[row, start_index:middle_index]
+            coeff = coeff.reshape((self.T_long, -1))
+            coeffInput.extend( (1 * np.sum(coeff, axis=1)).tolist())
+
+            varInput =   [ MsrPld[row, 0] ]
+            varInput.extend( self.robust_gas_generator.flatten().tolist() )
+
+            varIndex =   [ index_m[MsrPld[row, 0]]]
+            varIndex. extend( MAGIC_LIST )
+
+            constantInput = 1 * (
+                self.YY[row, :start_index].dot(MldPsr[:start_index])[0] +
+                self.YY[row, middle_index:].dot(MldPsr[middle_index:])[0]
+            )
+
+            self.testModel.addConstr(
+                sum(var_preset[varIndex] * np.array(coeffInput)) + constantInput <= 0
+            )
+
+            coeffInput = [ 1]
+            coeff = self.YY[row, start_index:middle_index]
+            coeff = coeff.reshape((self.T_long, -1))
+            coeffInput.extend( (-1 * np.sum(coeff, axis=1)).tolist())
+            varInput =   [ MsrPld[row, 0] ]
+            varInput.extend( self.robust_gas_generator.flatten().tolist() )
+
+            varIndex =   [ index_m[MsrPld[row, 0]]]
+            varIndex.extend( MAGIC_LIST )
+
+            constantInput = -1 * (
+                self.YY[row, :start_index].dot(MldPsr[:start_index])[0] +
+                self.YY[row, middle_index:].dot(MldPsr[middle_index:])[0]
+            )
+            self.testModel.addConstr(
+                sum(var_preset[varIndex] * np.array(coeffInput)) + constantInput <= 0
+            )
+
+        print('----generate robust Step 2----------------')
+        # build gas generator output
+        for gen in range(self.gas_generator_num):
+            for t in range(self.T_long):
+                self.testModel.addConstr(
+                    self.robust_gas_generator[gen, t] == (
+                        self.robust_gas_generator_base[gen, t] +
+                        self.zUp[gen, t] * self.robust_gas_generator_reserve_up[gen, t] -
+                        self.zDown[gen, t] * self.robust_gas_generator_reserve_down[gen, t]
+                    ))
+
+        print('----generate robust Step 3----------------')
+        # build pressure limit
+        sCollection = []
+        node_collection = self.robust_pressure_load.flatten().tolist() + \
+                          self.robust_pressure_generator.flatten().tolist()
+        for load in node_collection:
+            sMin = self.testModel.addVar()
+            sPlus = self.testModel.addVar()
+            sCollection.append(sMin)
+            sCollection.append(sPlus)
+
+            self.testModel.addConstr(
+                load - sMin <= self.gas_node_pressure_max,
+            )
+            self.testModel.addConstr(
+                load + sPlus >= self.gas_node_pressure_min,
+            )
+
+        print('----generate robust Step 3.1 add objective----------------')
+        # build primitive objective
+        self.testModel.setObjective(gurobi.quicksum(sCollection))
+
+        self.testModel.optimize()
+
+
+
+
+
     def feasibleProblemNetworkTest(self):
+        print('test ==== begin')
         # preset set variable
         self.testModel = gurobi.Model()
-        self.dualGen = GenDual(self.testModel)
+        self.dualGen = GenDual(self.testModel, addOrigModel=True)
         tM = self.testModel
 
         def getTranVars(varLong):
@@ -907,7 +1080,7 @@ class PowerGas:
 
         self.robust_pressure_well              = to_value(self.node_pressure_trans[0])                         # this is known source pressure
 
-        self.robust_gas_generator_base         = to_value(self.gas_generator_trans) * 1                                                         # this is known generator load
+        self.robust_gas_generator_base         = to_value(self.gas_generator) * 1                                                         # this is known generator load
         self.robust_gas_generator_reserve_up   = to_value(self.gas_generator_reserve_up)  * 0             # this is known generator reserve
         self.robust_gas_generator_reserve_down = to_value(self.gas_generator_reserve_down)   * 0         # this is known generator reserve
         self.robust_gas_generator              = tonp(tM.addVars(self.gas_generator_num, self.T_long))
@@ -922,14 +1095,245 @@ class PowerGas:
 
         self.zUp                               = tonp(tM.addVars(self.gas_generator_num, self.T_long, vtype=gurobi.GRB.BINARY))
         self.zDown                             = tonp(tM.addVars(self.gas_generator_num, self.T_long, vtype=gurobi.GRB.BINARY))
+        self.zUp[0,0] = 1
+        self.zUp[0,1] = 0
+        self.zDown[0,0] = 0
+        self.zDown[0,1] = 1
 
         # build and test feasible model
-        self.feasibleProblemNetworkBuild(self.testModel)
+        self.feasibleProblemNetworkBuildTest(self.testModel)
 
         assert 0
 
         return False
+    def feasibleProblemNetworkBuildTest(self, robustModel):
+        dG = self.dualGen
 
+        # build network constraints
+        MldPsr = np.vstack((
+            self.robust_flow_load                 .reshape(-1, 1),         # this is known value
+            self.robust_gas_generator_trans       .reshape(-1, 1),         # this is var
+            self.robust_pressure_well             .reshape(-1, 1)          # this is known value
+        ))
+        start_index = self.robust_flow_load.reshape(-1, 1).shape[0]
+        middle_index = self.robust_flow_load.reshape(-1, 1).shape[0] + \
+                       self.robust_gas_generator_trans.reshape(-1, 1).shape[0]
+
+        MsrPld = np.vstack((
+            self.robust_flow_source        .reshape(-1, 1),
+            self.robust_pressure_load      .reshape(-1, 1),
+            self.robust_pressure_generator .reshape(-1, 1)       # all these are vars
+        ))
+        byPassIndex = self.robust_flow_source.reshape(-1, 1).shape[0]
+
+        # because of the O^2 complex of index search , so we pre-set variable index
+        dG.preset_var_index((
+            self.robust_gas_generator.reshape(-1, 1).flatten().tolist(),
+            # self.robust_flow_source.reshape(-1, 1).flatten().tolist(),
+            self.robust_pressure_load.reshape(-1, 1).flatten().tolist(),
+            self.robust_pressure_generator.reshape(-1, 1).flatten().tolist()
+        ))
+        MAGIC_LIST = np.arange(self.robust_gas_generator.reshape(-1, 1).shape[0]).tolist()
+
+        map_value_index = 0
+        index_m = {}
+        robustModel.update()
+        for vars_preset in (
+            self.robust_gas_generator.reshape(-1, 1).flatten().tolist(),
+            # self.robust_flow_source.reshape(-1, 1).flatten().tolist(),
+            self.robust_pressure_load.reshape(-1, 1).flatten().tolist(),
+            self.robust_pressure_generator.reshape(-1, 1).flatten().tolist()
+        ):
+            vars_list = vars_preset
+            for var in vars_list:
+                index_m[var] = map_value_index
+                map_value_index = map_value_index + 1
+
+        # generate network constraints
+        print('----generate robust Step 1 ' + str(self.YY.shape[0]) + '----------------')
+        iter_count = self.YY.shape[0]
+        for row in range(iter_count - byPassIndex):
+            row = row + byPassIndex
+            if row % 100 == 0:
+                print('----generate robust Step 1 ' + str(row) + ' ----------------')
+                print('common')
+            dG.addConstr(
+                MsrPld[row, 0],
+                (self.YY[row, :]).dot(MldPsr)[0],
+                sense='=='
+            )
+            # continue
+            # coeffInput = [ -1]
+            # coeff = self.YY[row, start_index:middle_index]
+            # coeff = coeff.reshape((self.T_long, -1))
+            # coeffInput.extend( (1 * np.sum(coeff, axis=1)).tolist())
+            #
+            # varInput =   [ MsrPld[row, 0] ]
+            # varInput.extend( self.robust_gas_generator.flatten().tolist() )
+            #
+            # varIndex =   [ index_m[MsrPld[row, 0]]]
+            # varIndex. extend( MAGIC_LIST )
+            #
+            # constantInput = 1 * (
+            #     self.YY[row, :start_index].dot(MldPsr[:start_index])[0] +
+            #     self.YY[row, middle_index:].dot(MldPsr[middle_index:])[0]
+            # )
+            # dG.addConstr(
+            #     MsrPld[row, 0],
+            #     (self.YY[row, :]).dot(MldPsr)[0],
+            #     '<=',
+            #     name='xx',
+            #     appendIndex=False,
+            #     coeffInput=coeffInput,
+            #     varInput=varInput,
+            #     constantInput=constantInput,
+            #     varIndex=varIndex,
+            #     showTime=False
+            # )
+            #
+            # coeffInput = [ 1]
+            # coeff = self.YY[row, start_index:middle_index]
+            # coeff = coeff.reshape((self.T_long, -1))
+            # coeffInput.extend( (-1 * np.sum(coeff, axis=1)).tolist())
+            # varInput =   [ MsrPld[row, 0] ]
+            # varInput.extend( self.robust_gas_generator.flatten().tolist() )
+            #
+            # varIndex =   [ index_m[MsrPld[row, 0]]]
+            # varIndex.extend( MAGIC_LIST )
+            #
+            # constantInput = -1 * (
+            #     self.YY[row, :start_index].dot(MldPsr[:start_index])[0] +
+            #     self.YY[row, middle_index:].dot(MldPsr[middle_index:])[0]
+            # )
+            # dG.addConstr(
+            #     MsrPld[row, 0],
+            #     (self.YY[row, :]).dot(MldPsr)[0],
+            #     '>=',
+            #     name='xx',
+            #     appendIndex=False,
+            #     coeffInput=coeffInput,
+            #     varInput=varInput,
+            #     constantInput=constantInput,
+            #     varIndex=varIndex,
+            #     showTime=False
+            # )
+
+        print('----generate robust Step 2----------------')
+        # build gas generator output
+        for gen in range(self.gas_generator_num):
+            for t in range(self.T_long):
+                dG.addConstr(
+                    self.robust_gas_generator[gen, t],
+                    (self.robust_gas_generator_base[gen, t] +
+                    self.zUp[gen, t] * self.robust_gas_generator_reserve_up[gen, t] -
+                    self.zDown[gen, t] * self.robust_gas_generator_reserve_down[gen, t]),
+                    sense='==',
+                    appendIndex=True
+                )
+
+        print('----generate robust Step 3----------------')
+        # build pressure limit
+        sCollection = []
+        node_collection = self.robust_pressure_load.flatten().tolist() + \
+                          self.robust_pressure_generator.flatten().tolist()
+        for load in node_collection:
+            sMin = robustModel.addVar()
+            sPlus = robustModel.addVar()
+            sCollection.append(sMin)
+            sCollection.append(sPlus)
+
+            dG.addConstr(
+                load - sMin, self.gas_node_pressure_max, sense='<='
+            )
+            dG.addConstr(
+                load + sPlus, self.gas_node_pressure_min, sense='>='
+            )
+            dG.addConstr(
+                load, 0, sense='>='
+            )
+
+        for gas_gen in self.robust_gas_generator.flatten().tolist():
+            dG.addConstr(
+                gas_gen, 0, sense='>='
+            )
+
+
+        print('----generate robust Step 3.1 add objective----------------')
+        # build primitive objective
+        dG.addObjectiveMin(gurobi.quicksum(sCollection))
+
+        print('----generate robust Step 3.2 get dual problem----------------')
+        # add additional objective
+        dualModel = dG.getDual()
+
+        # print('----generate robust Step 3.3 add additional objective----------------')
+        # dualIndexList = dG.robustIndex
+        # dualIndexCount = 0
+        # BIGM = 1e3
+        # oobbjj = []
+        #
+        #
+        # self.zUp = tonp(dualModel.addVars(self.gas_generator_num, self.T_long, vtype=gurobi.GRB.BINARY))
+        # self.zDown = tonp(dualModel.addVars(self.gas_generator_num, self.T_long, vtype=gurobi.GRB.BINARY))
+        # self.zGreatV1 = np.empty((self.gas_generator_num, self.T), dtype=np.object)
+        # self.zGreatV2 = np.empty((self.gas_generator_num, self.T), dtype=np.object)
+        # self.zLessV1 = np.empty((self.gas_generator_num, self.T), dtype=np.object)
+        # self.zLessV2 = np.empty((self.gas_generator_num, self.T), dtype=np.object)
+        #
+        #
+        # for gen in range(self.gas_generator_num):
+        #     for t in range(self.T_long):    # per equal constraints
+        #         dual1 = dG.dualVars[dualIndexList[dualIndexCount]]
+        #         dualIndexCount = dualIndexCount + 1
+        #         dual2 = dG.dualVars[dualIndexList[dualIndexCount]]
+        #         dualIndexCount = dualIndexCount + 1
+        #
+        #         assert not dual1.sameAs(dual2)
+        #
+        #         zUp = self.zUp[gen, int(t/self.time_per_T)]
+        #         zDown = self.zDown[gen, int(t/self.time_per_T)]
+        #         dualModel.addConstr(zUp + zDown <= 1)
+        #
+        #         # for great part
+        #         gasBase = self.robust_gas_generator_base[gen, t]
+        #         gasUpper = self.robust_gas_generator_reserve_up[gen, t]
+        #         gasDown = self.robust_gas_generator_reserve_down[gen, t]
+        #         # gasRobust = gasBase + zUp * gasUpper - zDown * gasDown
+        #         v1 = dualModel.addVar(lb=-1*INF, ub=0)
+        #         v2 = dualModel.addVar(lb=-1*INF, ub=0)
+        #         self.zGreatV1[gen, t] = v1
+        #         self.zGreatV2[gen, t] = v2
+        #         # linear     v1 = zUp * dual1
+        #         self.addRelaxConstraints(v1, zUp, dual1, BIGM, dualModel)
+        #         # linear    v2 = zDown * dual1
+        #         self.addRelaxConstraints(v2, zDown, dual1, BIGM, dualModel)
+        #         oobbjj.append(dual1 * gasBase + gasUpper * v1 - gasDown * v2)
+        #
+        #         # for less part
+        #         # gasRobust = gasBase + zUp * gasUpper - zDown * gasDown
+        #         v1 = dualModel.addVar(lb=-1*INF, ub=0)
+        #         v2 = dualModel.addVar(lb=-1*INF, ub=0)
+        #         self.zLessV1[gen, t] = v1
+        #         self.zLessV2[gen, t] = v2
+        #         # linear     v1 = zUp * dual2
+        #         self.addRelaxConstraints(v1, zUp, dual2, BIGM, dualModel)
+        #         # linear    v2 = zDown * dual2
+        #         self.addRelaxConstraints(v2, zDown, dual2, BIGM, dualModel)
+        #         oobbjj.append(-1 * dual2 * gasBase - gasUpper * v1 + gasDown * v2)
+        #
+        # assert dualIndexCount == len(dualIndexList)
+
+
+        print('----generate robust Step 3.4 optimize----------------')
+        # dualModel.setObjective( 1*dualModel.getObjective() + 0*sum(oobbjj) )
+
+        dualModel.setParam("MIPFocus", 1)
+        dualModel.optimize()
+
+        self.zGreat = to_value(self.zUp)
+        self.zLess = to_value(self.zDown)
+
+        return dualModel.getObjective().getValue()
     def feasibleProblemNetworkPreset(self):
         # build robust var
         self.robustModel = gurobi.Model()
@@ -937,7 +1341,6 @@ class PowerGas:
 
         rM = self.robustModel
         self.buildRobustVarsNetwork(rM)
-
     def feasibleProblemNetworkBuild(self, robustModel):
         dG = self.dualGen
 
@@ -955,6 +1358,8 @@ class PowerGas:
             self.robust_pressure_load      .reshape(-1, 1),
             self.robust_pressure_generator .reshape(-1, 1)       # all these are vars
         ))
+
+        byPassIndex = self.robust_flow_source.reshape(-1, 1).shape[0]
 
         # because of the O^2 complex of index search , so we pre-set variable index
         dG.preset_var_index((
@@ -981,7 +1386,8 @@ class PowerGas:
 
         print('----generate robust Step 1 ' + str(self.YY.shape[0]) + '----------------')
         iter_count = self.YY.shape[0]
-        for row in range(iter_count):
+        for row in range(iter_count - byPassIndex):
+            row = row + byPassIndex
             if row % 100 == 0:
                 print('----generate robust Step 1 ' + str(row) + ' ----------------')
             coeffInput = [ -1]
@@ -1132,7 +1538,7 @@ class PowerGas:
                 oobbjj.append(-1 * dual2 * gasBase - gasUpper * v1 + gasDown * v2)
 
         assert dualIndexCount == len(dualIndexList)
-        dualModel.setObjective( dualModel.getObjective() + sum(oobbjj) )
+        dualModel.setObjective( 1*dualModel.getObjective() + 1*sum(oobbjj) )
 
         print('----generate robust Step 3.4 optimize----------------')
         dualModel.setParam("MIPFocus", 1)
@@ -1467,6 +1873,8 @@ class PowerGas:
         self.zLess = to_value(self.zDown)
 
         return dualModel.getObjective().getValue()
+
+
 
     def feasibleProblem(self):
         self.robustModel = gurobi.Model()
@@ -1970,6 +2378,7 @@ class PowerGas:
         plt.plot(p2)
         plt.show()
 
+
 class GenDual:
     def __init__(self, originalModel, addOrigModel=False):
         self.dualModel = gurobi.Model()
@@ -1998,7 +2407,6 @@ class GenDual:
             expr = exprLeft - exprRight
             self.exprs.append(-1 * expr)
             self.senses.append('>=')
-            # expr = -1 * expr
             if self.addOrigModel:
                 self.origModel.addConstr(expr <= 0)
 
@@ -2006,23 +2414,19 @@ class GenDual:
             expr = exprRight - exprLeft
             self.exprs.append(-1 * expr)
             self.senses.append('>=')
-            # expr = -1 * expr
             if self.addOrigModel:
                 self.origModel.addConstr(expr <= 0)
-            if coeffInput is not None:
-                coeffInput = (np.array(coeffInput) * -1).tolist()
 
         elif sense == '==':
             expr = exprLeft - exprRight
-            # self.exprs.append(expr)
-            # self.senses.append('==')
             self.addConstr(expr, 0, '>=', 'Great'+name, appendIndex, coeffInput, varInput, constantInput, showTime)
             self.addConstr(expr, 0, '<=', 'Less'+name, appendIndex, coeffInput, varInput, constantInput, showTime)
             return
         else:
             assert 0
 
-        expr = -1 * expr # guarantee expr >= 0
+
+        expr = -1 * expr  # guarantee expr >= 0
         t1 = time.time()
 
         # one dual var per constraint
@@ -2031,9 +2435,11 @@ class GenDual:
 
         if coeffInput is None:
             # decompose expr as (vars, coeffs, constant) WITHOUT zero-coeff
-            cons_vars, coeff, constant = self.getVars(expr)
+            cons_vars, coeff, constant = self.getVarsDiff(expr)
+            # 断言 vars 里面 没有 相同的 变量，即 合并同类项 的 结果:
             self.assertDiffVars(cons_vars)
             # we maintain a original var order list
+            # 扩展 变量 列表，同时 返回 cons_vars 对应的 序列号
             colIndexRet = self.extendVars(self.origVars, cons_vars)
         else:                          # else we input all thing
             cons_vars = varInput
@@ -2057,6 +2463,7 @@ class GenDual:
         self.j.extend(colIndexRet)
         self.v.extend(coeff)
 
+        # TODO : SO this is Ax + b >= 0 ?? i forget!!!
         # [CONSTRUCT MATRIX] construct the right hand side
         self.valueLeft.append(constant * 1)
 
@@ -2097,8 +2504,8 @@ class GenDual:
             # dual_expr_left = sum(self.coeffMatrixTrans[i] * self.dualVar)
             dual_expr_left = sum(coeff_left * var_right)
             dual_expr_right = self.objCoeffMatrix[i]
-
-            self.dualModel.addConstr(dual_expr_left == -1*dual_expr_right)
+            if coeff_left.size:
+                self.dualModel.addConstr(dual_expr_left == -1*dual_expr_right)
             # if self.senses[i] == '==':
             #     self.dualModel.addConstr(dual_expr_left <= dual_expr_right)
             # if self.senses[i] == '<=':
@@ -2113,6 +2520,7 @@ class GenDual:
     def getVars(self, expression):
         assert (isinstance(expression, gurobi.LinExpr))
         self.doNothing = 1
+
         expr = expression
         varSize = expr.size()
         allVars = []
@@ -2124,6 +2532,34 @@ class GenDual:
 
         constant = expr.getConstant()
         return allVars, allCoeff, constant
+
+    def getVarsDiff(self, expression):
+        assert (isinstance(expression, gurobi.LinExpr))
+        self.doNothing = 1
+
+        expr = expression
+        varSize = expr.size()
+        allVars = []
+        allCoeff = []
+
+        for index in range(varSize):
+            allVars.append(expr.getVar(index))
+            allCoeff.append(expr.getCoeff(index))
+
+        constant = expr.getConstant()
+
+        var_value = {}
+        self.origModel.update()
+        for index, var in enumerate(allVars):
+            if var not in var_value:
+                var_value[var] = allCoeff[index]
+            else:
+                var_value[var] += allCoeff[index]
+
+        allVars = list(var_value.keys())
+        allCoeff = list(var_value.values())
+        return allVars, allCoeff, constant
+
 
     def extendVars(self, listTo, all_vars):
         insertIndex = []
@@ -2157,15 +2593,18 @@ class GenDual:
         obj_i = []
         obj_j = []
         obj_v = []
+
         for index in range(obj_var_len):
             var = expr.getVar(index)
             ind = self.getIndex(self.origVars, var)
             coe = expr.getCoeff(index)
             if ind == -1:
                 assert 0
+
             obj_i.append(0)
             obj_j.append(ind)
             obj_v.append(coe)
+
         sp = csr_matrix((obj_v, (obj_i, obj_j)), shape=(1, len(self.origVars)))
 
         self.objCoeffMatrix = np.array(sp.toarray())[0]
@@ -2245,6 +2684,7 @@ def main():
         t1 = time.time()
         # pg.feasibleProblemNetworkPreset()
         # feasibleTest = pg.feasibleProblemNetworkBuild(pg.robustModel)
+        # pg.testOriginalFeasibelModel()
         feasibleTest = pg.feasibleProblemNetworkTest()
         t2 = time.time()
         print('Feasibel Time : ' + str(t2 - t1))
