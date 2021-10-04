@@ -165,6 +165,8 @@ def getVarsDiff(expression):
         return allVars, allCoeff, constant
 INF = gurobi.GRB.INFINITY
 
+LOG_OUTPUT = False
+
 # TODO:
 #  1, original problem solve
 #  2, dual problem solve
@@ -838,7 +840,7 @@ class PowerGas:
             for t in range(self.T_long):
                 objs.append(-1 * self.gas_generator_reserve_up[gen, t] - self.gas_generator_reserve_down[gen, t])
         # --------------- 3 set objective ----------------
-        # self.model.setParam('OutputFlag', 0)
+        self.model.setParam('OutputFlag', 0)
         self.model.setParam('BarHomogeneous', 1)
         # self.model.setParam('Method', 1)
         self.model.setObjective(sum(objs))
@@ -1288,7 +1290,7 @@ class PowerGas:
         print('----generate robust Step 3.4 optimize----------------')
         # dualModel.setObjective( 1*dualModel.getObjective() + 0*sum(oobbjj) )
 
-        dualModel.setParam("MIPFocus", 1)
+        # dualModel.setParam("MIPFocus", 1)
         dualModel.optimize()
 
         self.zGreat = to_value(self.zUp)
@@ -1301,6 +1303,17 @@ class PowerGas:
 
 
     # [USE] this is actually use network-form feasible problem
+    def getTranVars(self, varLong):
+        rows = 0
+        if isinstance(varLong, gurobi.tupledict):
+            rows = varLong.keys()[-1][0] + 1  # +1 is actual length
+        elif isinstance(varLong, np.ndarray):
+            rows = varLong.shape[0]
+        trans = np.empty((rows, self.T), dtype=np.object)
+        for row in range(rows):
+            for t in range(self.T):
+                trans[row, t] = varLong[row, int(t / self.time_per_T)]
+        return trans
     def buildRobustVarsNetwork(self, model):
         def getTranVars(varLong):
             rows = 0
@@ -1366,7 +1379,7 @@ class PowerGas:
         # because of the O^2 complex of index search , so we pre-set variable index
         dG.preset_var_index((
             self.robust_gas_generator.reshape(-1, 1).flatten().tolist(),
-            self.robust_flow_source.reshape(-1, 1).flatten().tolist(),
+            # self.robust_flow_source.reshape(-1, 1).flatten().tolist(),
             self.robust_pressure_load.reshape(-1, 1).flatten().tolist(),
             self.robust_pressure_generator.reshape(-1, 1).flatten().tolist()
         ))
@@ -1377,7 +1390,7 @@ class PowerGas:
         robustModel.update()
         for vars_preset in (
             self.robust_gas_generator.reshape(-1, 1).flatten().tolist(),
-            self.robust_flow_source.reshape(-1, 1).flatten().tolist(),
+            # self.robust_flow_source.reshape(-1, 1).flatten().tolist(),
             self.robust_pressure_load.reshape(-1, 1).flatten().tolist(),
             self.robust_pressure_generator.reshape(-1, 1).flatten().tolist()
         ):
@@ -1386,12 +1399,14 @@ class PowerGas:
                 index_m[var] = map_value_index
                 map_value_index = map_value_index + 1
 
-        print('----generate robust Step 1 ' + str(self.YY.shape[0]) + '----------------')
+        if LOG_OUTPUT:
+            print('----generate robust Step 1 ' + str(self.YY.shape[0]) + '----------------')
         iter_count = self.YY.shape[0]
         for row in range(iter_count - byPassIndex):
             row = row + byPassIndex
             if row % 100 == 0:
-                print('----generate robust Step 1 ' + str(row) + ' ----------------')
+                if LOG_OUTPUT:
+                    print('----generate robust Step 1 ' + str(row) + ' ----------------')
             # dG.addConstr(
             #     MsrPld[row, 0],
             #     (self.YY[row, :]).dot(MldPsr)[0],
@@ -1454,7 +1469,8 @@ class PowerGas:
                 showTime=False
             )
 
-        print('----generate robust Step 2----------------')
+        if LOG_OUTPUT:
+            print('----generate robust Step 2----------------')
         # build gas generator output
         for gen in range(self.gas_generator_num):
             for t in range(self.T_long):
@@ -1465,7 +1481,8 @@ class PowerGas:
                     appendIndex=True
                 )
 
-        print('----generate robust Step 3----------------')
+        if LOG_OUTPUT:
+            print('----generate robust Step 3----------------')
         # build pressure limit
         sCollection = []
         node_collection = self.robust_pressure_load.flatten().tolist() + \
@@ -1493,15 +1510,18 @@ class PowerGas:
                 sPlus, 0, sense='>='
             )
 
-        print('----generate robust Step 3.1 add objective----------------')
+        if LOG_OUTPUT:
+            print('----generate robust Step 3.1 add objective----------------')
         # build primitive objective
         dG.addObjectiveMin(gurobi.quicksum(sCollection))
 
-        print('----generate robust Step 3.2 get dual problem----------------')
+        if LOG_OUTPUT:
+            print('----generate robust Step 3.2 get dual problem----------------')
         # add additional objective
         dualModel = dG.getDual()
 
-        print('----generate robust Step 3.3 add additional objective----------------')
+        if LOG_OUTPUT:
+            print('----generate robust Step 3.3 add additional objective----------------')
         dualIndexList = dG.robustIndex
         dualIndexCount = 0
         BIGM = 1e3
@@ -1559,8 +1579,10 @@ class PowerGas:
         assert dualIndexCount == len(dualIndexList)
         dualModel.setObjective( 1*dualModel.getObjective() + 1*sum(oobbjj) )
 
-        print('----generate robust Step 3.4 optimize----------------')
-        dualModel.setParam("MIPFocus", 1)
+        if LOG_OUTPUT:
+            print('----generate robust Step 3.4 optimize----------------')
+        # dualModel.setParam("MIPFocus", 1)
+        dualModel.setParam("OutputFlag", 0)
         dualModel.optimize()
 
         self.zGreat = to_value(self.zUp)
@@ -1904,7 +1926,7 @@ class PowerGas:
         # self.file_index = self.file_index + 1
         # # print("=====> statistic end ")
         # dualModel.tune()
-        dualModel.setParam("MIPFocus", 1)
+        # dualModel.setParam("MIPFocus", 1)
         dualModel.optimize()
 
         self.zGreat = to_value(self.zUp)
@@ -2229,7 +2251,7 @@ class PowerGas:
         # self.file_index = self.file_index + 1
         # # print("=====> statistic end ")
         # dualModel.tune()
-        dualModel.setParam("MIPFocus", 1)
+        # dualModel.setParam("MIPFocus", 1)
         dualModel.optimize()
 
         self.zGreat = to_value(self.zGreat)
@@ -2245,18 +2267,20 @@ class PowerGas:
 
     #
     def addAppendVars(self):
-        self.append_pressure_well = self.node_pressure_trans[0, :]
-        self.append_gas_generator = self.model.addVars(self.gas_generator_num, self.T)
-        self.append_flow_source = self.model.addVars(self.gas_well_num, self.T)
-        self.append_pressure_load = self.model.addVars(self.gas_load_num, self.T)
-        self.append_pressure_generator = self.model.addVars(self.gas_generator_num, self.T)
+        self.append_pressure_well         = self.node_pressure_trans[0, :]
+        self.append_gas_generator         = self.model.addVars(self.gas_generator_num, self.T_long)
+        self.append_gas_generator_trans   = self.getTranVars(self.append_gas_generator)
+
+        self.append_flow_source           = tonp(self.model.addVars(self.gas_well_num, self.T))
+        self.append_pressure_load         = tonp(self.model.addVars(self.gas_load_num, self.T))
+        self.append_pressure_generator    = tonp(self.model.addVars(self.gas_generator_num, self.T))
     def appendConstraintNetwork(self):
         # build network constraints
         self.addAppendVars()
         MldPsr = np.vstack((
-            self.gas_load             .reshape(-1, 1),         # this is known value
-            self.append_gas_generator .reshape(-1, 1),         # this is var
-            self.append_pressure_well .reshape(-1, 1)          # this is known value
+            self.gas_load_trans             .reshape(-1, 1),         # this is known value
+            self.append_gas_generator_trans .reshape(-1, 1),         # this is var
+            self.append_pressure_well       .reshape(-1, 1)          # this is known value
         ))
 
         MsrPld = np.vstack((
@@ -2264,29 +2288,35 @@ class PowerGas:
             self.append_pressure_load      .reshape(-1, 1),
             self.append_pressure_generator .reshape(-1, 1)       # all these are vars
         ))
+        byPassIndex = self.append_flow_source.reshape(-1, 1).shape[0]
 
-        print('----generate robust Step 1 ' + str(self.YY.shape[0]) + '----------------')
+        if LOG_OUTPUT:
+            print('----append constr Step 1 ' + str(self.YY.shape[0]) + '----------------')
         iter_count = self.YY.shape[0]
-        for row in range(iter_count):
+        for row in range(iter_count - byPassIndex):
+            row = row + byPassIndex
+            if row % 100 == 0:
+                if LOG_OUTPUT:
+                    print('------- append constraint' + str(row) + '----------')
             self.model.addConstr(
                 MsrPld[row, 0] ==
                 (self.YY[row, :]).dot(MldPsr)[0]
             )
 
-        print('----generate robust Step 2----------------')
+        if LOG_OUTPUT:
+            print('----append constr robust Step 2----------------')
         # build gas generator output
         for gen in range(self.gas_generator_num):
-            for t in range(self.T):
+            for t in range(self.T_long):
                 self.model.addConstr(
                     self.append_gas_generator[gen, t] ==
-                    (self.gas_generator_trans[gen, t] +
-                    self.zGreat[gen, int(t/self.time_per_T)] *
-                     self.gas_generator_reserve_up[gen, int(t/self.time_per_T)] -
-                    self.zLess[gen, int(t/self.time_per_T)] *
-                     self.gas_generator_reserve_down[gen, int(t/self.time_per_T)]),
+                    (self.gas_generator[gen, t] +
+                    self.zGreat[gen, t] * self.gas_generator_reserve_up[gen, t] -
+                    self.zLess[gen, t] * self.gas_generator_reserve_down[gen, t]),
                 )
 
-        print('----generate robust Step 3----------------')
+        if LOG_OUTPUT:
+            print('----append constr robust Step 3----------------')
         # build pressure limit
         node_collection = self.append_pressure_load.flatten().tolist() + \
                           self.append_pressure_generator.flatten().tolist()
@@ -2558,7 +2588,8 @@ class GenDual:
             assert count <= 1
 
     def getDual(self):
-        print('----generate robust Step 3.2.1 generate full matrix---------------')
+        if LOG_OUTPUT:
+            print('----generate robust Step 3.2.1 generate full matrix---------------')
         from scipy.sparse import csr_matrix
         sp = csr_matrix((self.v, (self.i, self.j)), shape=(self.consCount, len(self.origVars)))
 
@@ -2572,7 +2603,8 @@ class GenDual:
 
         self.objCoeffMatrix = self.objCoeffMatrix
 
-        print('----generate robust Step 3.2.2 add constraints----------------')
+        if LOG_OUTPUT:
+            print('----generate robust Step 3.2.2 add constraints----------------')
         for i in range(len(self.origVars)):
             # write a sparse form
             coeff = self.coeffMatrixTrans[i]
@@ -2592,7 +2624,8 @@ class GenDual:
 
         self.dualModel.setObjective(-1 * sum(self.valueArray * self.dualVar))
 
-        print('----generate robust Step 3.2.3 update model----------------')
+        if LOG_OUTPUT:
+            print('----generate robust Step 3.2.3 update model----------------')
         self.dualModel.update()
         return self.dualModel
 
@@ -2765,7 +2798,8 @@ def main():
         # pg.testOriginalFeasibelModel()
         # feasibleTest = pg.feasibleProblemNetworkTest()
         t2 = time.time()
-        print('Feasibel Time : ' + str(t2 - t1))
+        if LOG_OUTPUT:
+            print('Feasibel Time : ' + str(t2 - t1))
         if abs(feasibleTest) <= 1e-1:
             print('    ===> Stage 3 : Terminate : feasible test result : [' + str(feasibleTest) + ']')
             print('    ===> feasibleTest : Reserve Up [' + str(
@@ -2775,10 +2809,10 @@ def main():
             return
         else:
             print('    ===> Stage 3 : Append constraints : feasible test result : [' + str(feasibleTest) + ']')
-            scenarioLess.append(pg.zLess[2])
-            scenarioGreat.append(pg.zGreat[2])
+            scenarioLess.append(pg.zLess.tolist())
+            scenarioGreat.append(pg.zGreat.tolist())
             pg.appendConstraintNetwork()
-
+        print(' ')
 
 
 

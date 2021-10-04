@@ -73,7 +73,7 @@ line_current_flow_capacity = 10
 
 #######################################################################
 gas_node_num =              4
-node_pressure_min =         4e4 / 4e3 * 1    # 10
+node_pressure_min =         4e4 / 4e3 * 5    # 10
 node_pressure_max =         8e5 / 4e3        # 200
 # node_pressure_max = 5e1 / 4e3
 PRESSURE_CONSTANT =         4e5 / 4e3       # 100
