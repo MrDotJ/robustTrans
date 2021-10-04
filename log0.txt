@@ -295,3 +295,36 @@ Gurobi 9.1.1 (win64) logging started Mon Oct  4 01:25:15 2021
 
 Gurobi 9.1.1 (win64) logging started Mon Oct  4 01:25:50 2021
 
+
+Gurobi 9.1.1 (win64) logging started Mon Oct  4 01:34:37 2021
+
+
+Gurobi 9.1.1 (win64) logging started Mon Oct  4 08:59:17 2021
+
+
+Gurobi 9.1.1 (win64) logging started Mon Oct  4 09:10:06 2021
+
+
+Gurobi 9.1.1 (win64) logging started Mon Oct  4 09:12:32 2021
+
+
+Gurobi 9.1.1 (win64) logging started Mon Oct  4 09:14:51 2021
+
+
+Gurobi 9.1.1 (win64) logging started Mon Oct  4 09:20:06 2021
+
+
+Gurobi 9.1.1 (win64) logging started Mon Oct  4 09:31:30 2021
+
+
+Gurobi 9.1.1 (win64) logging started Mon Oct  4 09:55:10 2021
+
+
+Gurobi 9.1.1 (win64) logging started Mon Oct  4 09:56:51 2021
+
+
+Gurobi 9.1.1 (win64) logging started Mon Oct  4 10:36:29 2021
+
+
+Gurobi 9.1.1 (win64) logging started Mon Oct  4 10:46:58 2021
+
