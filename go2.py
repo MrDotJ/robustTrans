@@ -557,18 +557,6 @@ class PowerGas:
 
     def build_original_model_var(self):
         # build power system variables
-        def getTranVars(varLong):
-            rows = 0
-            if isinstance(varLong, gurobi.tupledict):
-                rows = varLong.keys()[-1][0] + 1  # +1 is actual length
-            elif isinstance(varLong, np.ndarray):
-                rows = varLong.shape[0]
-            trans = np.empty((rows, self.T), dtype=np.object)
-            for row in range(rows):
-                for t in range(self.T):
-                    trans[row, t] = varLong[row, int(t / self.time_per_T)]
-            return trans
-
         self.power_gen = tonp(self.model.addVars(
             self.gen_num, self.T_long,
             lb=[[self.gen_power_min[i]] * self.T_long for i in range(self.gen_num)],
@@ -590,10 +578,10 @@ class PowerGas:
             ub=self.load_react_max,  # [[self.load_react_max[i]] * self.T for i in range(self.load_num)],
             name='react_load'))
 
-        self.power_gen_trans = getTranVars(self.power_gen)
-        self.react_gen_trans = getTranVars(self.react_gen)
-        self.power_load_trans = getTranVars(self.power_load)
-        self.react_load_trans = getTranVars(self.react_load)
+        self.power_gen_trans = self.getTranVars(self.power_gen)
+        self.react_gen_trans = self.getTranVars(self.react_gen)
+        self.power_load_trans = self.getTranVars(self.power_load)
+        self.react_load_trans = self.getTranVars(self.react_load)
 
         self.voltage_square = tonp(self.model.addVars(
             self.bus_num, self.T_long,
@@ -677,8 +665,8 @@ class PowerGas:
         #     self.gas_well_num, self.T_long,
         #     name='gas_well_set_pressure'
         # )
-        self.gas_generator_trans = getTranVars(self.gas_generator)
-        self.gas_load_trans = getTranVars(self.gas_load)
+        self.gas_generator_trans = self.getTranVars(self.gas_generator)
+        self.gas_load_trans = self.getTranVars(self.gas_load)
         # self.well_pressure_trans = getTranVars(self.well_pressure)
     def buildBasePrimaryProblem(self):
         # ----------- 1. add Vars ---------------------------
@@ -856,17 +844,6 @@ class PowerGas:
         self.testModel = gurobi.Model()
         tM = self.testModel
 
-        def getTranVars(varLong):
-            rows = 0
-            if isinstance(varLong, gurobi.tupledict):
-                rows = varLong.keys()[-1][0] + 1  # +1 is actual length
-            elif isinstance(varLong, np.ndarray):
-                rows = varLong.shape[0]
-            trans = np.empty((rows, self.T), dtype=np.object)
-            for row in range(rows):
-                for t in range(self.T):
-                    trans[row, t] = varLong[row, int(t / self.time_per_T)]
-            return trans
 
         self.robust_pressure_well = to_value(self.node_pressure_trans[0])  # this is known source pressure
 
@@ -876,7 +853,7 @@ class PowerGas:
         self.robust_gas_generator_reserve_down = to_value(
             self.gas_generator_reserve_down) * 0  # this is known generator reserve
         self.robust_gas_generator = tonp(tM.addVars(self.gas_generator_num, self.T_long))
-        self.robust_gas_generator_trans = getTranVars(self.robust_gas_generator)
+        self.robust_gas_generator_trans = self.getTranVars(self.robust_gas_generator)
 
         self.robust_flow_load = to_value(self.gas_load_trans)  # this is known load gas flow
 
@@ -1026,25 +1003,13 @@ class PowerGas:
         self.dualGen = GenDual(self.testModel, addOrigModel=True)
         tM = self.testModel
 
-        def getTranVars(varLong):
-            rows = 0
-            if isinstance(varLong, gurobi.tupledict):
-                rows = varLong.keys()[-1][0] + 1  # +1 is actual length
-            elif isinstance(varLong, np.ndarray):
-                rows = varLong.shape[0]
-            trans = np.empty((rows, self.T), dtype=np.object)
-            for row in range(rows):
-                for t in range(self.T):
-                    trans[row, t] = varLong[row, int(t / self.time_per_T)]
-            return trans
-
         self.robust_pressure_well              = to_value(self.node_pressure_trans[0])                         # this is known source pressure
 
         self.robust_gas_generator_base         = to_value(self.gas_generator) * 1                                                         # this is known generator load
         self.robust_gas_generator_reserve_up   = to_value(self.gas_generator_reserve_up)  * 0             # this is known generator reserve
         self.robust_gas_generator_reserve_down = to_value(self.gas_generator_reserve_down)   * 0         # this is known generator reserve
         self.robust_gas_generator              = tonp(tM.addVars(self.gas_generator_num, self.T_long))
-        self.robust_gas_generator_trans        = getTranVars(self.robust_gas_generator)
+        self.robust_gas_generator_trans        = self.getTranVars(self.robust_gas_generator)
 
         self.robust_flow_load                  = to_value(self.gas_load_trans)                                        # this is known load gas flow
 
@@ -1315,25 +1280,13 @@ class PowerGas:
                 trans[row, t] = varLong[row, int(t / self.time_per_T)]
         return trans
     def buildRobustVarsNetwork(self, model):
-        def getTranVars(varLong):
-            rows = 0
-            if isinstance(varLong, gurobi.tupledict):
-                rows = varLong.keys()[-1][0] + 1  # +1 is actual length
-            elif isinstance(varLong, np.ndarray):
-                rows = varLong.shape[0]
-            trans = np.empty((rows, self.T), dtype=np.object)
-            for row in range(rows):
-                for t in range(self.T):
-                    trans[row, t] = varLong[row, int(t / self.time_per_T)]
-            return trans
-
         self.robust_pressure_well              = to_value(self.node_pressure_trans[0])                         # this is known source pressure
 
-        self.robust_gas_generator_base         = to_value(self.gas_generator_trans)                                                          # this is known generator load
+        self.robust_gas_generator_base         = to_value(self.gas_generator)                                                          # this is known generator load
         self.robust_gas_generator_reserve_up   = to_value(self.gas_generator_reserve_up)              # this is known generator reserve
         self.robust_gas_generator_reserve_down = to_value(self.gas_generator_reserve_down)            # this is known generator reserve
         self.robust_gas_generator              = tonp(model.addVars(self.gas_generator_num, self.T_long))
-        self.robust_gas_generator_trans        = getTranVars(self.robust_gas_generator)
+        self.robust_gas_generator_trans        = self.getTranVars(self.robust_gas_generator)
 
         self.robust_flow_load                  = to_value(self.gas_load_trans)                                        # this is known load gas flow
 
@@ -1530,10 +1483,11 @@ class PowerGas:
 
         self.zUp = tonp(dualModel.addVars(self.gas_generator_num, self.T_long, vtype=gurobi.GRB.BINARY))
         self.zDown = tonp(dualModel.addVars(self.gas_generator_num, self.T_long, vtype=gurobi.GRB.BINARY))
-        self.zGreatV1 = np.empty((self.gas_generator_num, self.T), dtype=np.object)
-        self.zGreatV2 = np.empty((self.gas_generator_num, self.T), dtype=np.object)
-        self.zLessV1 = np.empty((self.gas_generator_num, self.T), dtype=np.object)
-        self.zLessV2 = np.empty((self.gas_generator_num, self.T), dtype=np.object)
+
+        self.zGreatV1 = np.empty((self.gas_generator_num, self.T_long), dtype=np.object)
+        self.zGreatV2 = np.empty((self.gas_generator_num, self.T_long), dtype=np.object)
+        self.zLessV1 = np.empty((self.gas_generator_num, self.T_long), dtype=np.object)
+        self.zLessV2 = np.empty((self.gas_generator_num, self.T_long), dtype=np.object)
 
 
         for gen in range(self.gas_generator_num):
@@ -1545,8 +1499,8 @@ class PowerGas:
 
                 assert not dual1.sameAs(dual2)
 
-                zUp = self.zUp[gen, int(t/self.time_per_T)]
-                zDown = self.zDown[gen, int(t/self.time_per_T)]
+                zUp = self.zUp[gen, t]
+                zDown = self.zDown[gen, t]
                 dualModel.addConstr(zUp + zDown <= 1)
 
                 # for great part
@@ -2809,6 +2763,9 @@ def main():
             return
         else:
             print('    ===> Stage 3 : Append constraints : feasible test result : [' + str(feasibleTest) + ']')
+            print('    ===> Stage 3 : Scenario found is : ')
+            print('           ' + str(pg.zLess.flatten().tolist()))
+            print('           ' + str(pg.zGreat.flatten().tolist()))
             scenarioLess.append(pg.zLess.tolist())
             scenarioGreat.append(pg.zGreat.tolist())
             pg.appendConstraintNetwork()
