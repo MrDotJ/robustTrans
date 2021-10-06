@@ -372,20 +372,26 @@ class PowerGas:
         import os.path as path
         import pickle
 
-        if not path.exists('abcd.pkl'):
-            self.generate_trans_coeff()
-            self.generate_matrix_ab()
-            self.generate_matrix_cd()
-            with open('abcd.pkl', 'wb') as f:  # Python 3: open(..., 'wb')
-                pickle.dump([self.Matrix_ab, self.Matrix_cd, self.node_counts], f)
-        else:
-            print('load matrix from file')
-            with open('abcd.pkl', 'rb') as f:  # Python 3: open(..., 'rb')
-                self.Matrix_ab, self.Matrix_cd, self.node_counts = pickle.load(f)
-                self.A_ana = self.Matrix_ab[:, -1, 0:self.time_counts]
-                self.B_ana = self.Matrix_ab[:, -1, self.time_counts: 2 * self.time_counts]
-                self.C_ana = self.Matrix_cd[:, -1, 0:self.time_counts]
-                self.D_ana = self.Matrix_cd[:, -1, self.time_counts: 2 * self.time_counts]
+        # if not path.exists('abcd.pkl'):
+        #     self.generate_trans_coeff()
+        #     self.generate_matrix_ab()
+        #     self.generate_matrix_cd()
+        #     with open('abcd.pkl', 'wb') as f:  # Python 3: open(..., 'wb')
+        #         pickle.dump([self.Matrix_ab, self.Matrix_cd, self.node_counts], f)
+        # else:
+        #     print('load matrix from file')
+        #     with open('abcd.pkl', 'rb') as f:  # Python 3: open(..., 'rb')
+        #         self.Matrix_ab, self.Matrix_cd, self.node_counts = pickle.load(f)
+        #         self.A_ana = self.Matrix_ab[:, -1, 0:self.time_counts]
+        #         self.B_ana = self.Matrix_ab[:, -1, self.time_counts: 2 * self.time_counts]
+        #         self.C_ana = self.Matrix_cd[:, -1, 0:self.time_counts]
+        #         self.D_ana = self.Matrix_cd[:, -1, self.time_counts: 2 * self.time_counts]
+
+        self.generate_trans_coeff()
+        self.generate_matrix_ab()
+        self.generate_matrix_cd()
+        with open('abcd.pkl', 'wb') as f:  # Python 3: open(..., 'wb')
+            pickle.dump([self.Matrix_ab, self.Matrix_cd, self.node_counts], f)
 
         self.generate_network_matrix()
         self.testMatrixHaHa()
@@ -1272,7 +1278,9 @@ class PowerGas:
 
 
     # [USE] this is actually use network-form feasible problem
-    def getTranVars(self, varLong):
+    def getTranVars(self, varLong, time_interval=0):
+        if time_interval == 0:
+            time_interval = self.time_per_T
         rows = 0
         if isinstance(varLong, gurobi.tupledict):
             rows = varLong.keys()[-1][0] + 1  # +1 is actual length
@@ -1281,7 +1289,7 @@ class PowerGas:
         trans = np.empty((rows, self.T), dtype=np.object)
         for row in range(rows):
             for t in range(self.T):
-                trans[row, t] = varLong[row, int(t / self.time_per_T)]
+                trans[row, t] = varLong[row, int(t/time_interval)]
         return trans
     def buildRobustVarsNetwork(self, model):
         self.robust_pressure_well              = to_value(self.node_pressure_trans[0])                         # this is known source pressure
@@ -1290,7 +1298,7 @@ class PowerGas:
         self.robust_gas_generator_reserve_up   = to_value(self.gas_generator_reserve_up)              # this is known generator reserve
         self.robust_gas_generator_reserve_down = to_value(self.gas_generator_reserve_down)            # this is known generator reserve
         self.robust_gas_generator              = tonp(model.addVars(self.gas_generator_num, self.T_fre))
-        self.robust_gas_generator_trans        = self.getTranVars(self.robust_gas_generator)
+        self.robust_gas_generator_trans        = self.getTranVars(self.robust_gas_generator, time_interval=int(self.T/self.T_fre))
 
         self.robust_flow_load                  = to_value(self.gas_load_trans)                                        # this is known load gas flow
 
@@ -1370,7 +1378,7 @@ class PowerGas:
                 (self.YY[row, :]).dot(MldPsr)[0],
                 sense='=='
             )
-            continue
+            # continue
 
             coeffInput = [ -1]
             coeff = self.YY[row, start_index:middle_index]
@@ -2229,7 +2237,7 @@ class PowerGas:
     def addAppendVars(self):
         self.append_pressure_well         = self.node_pressure_trans[0, :]
         self.append_gas_generator         = self.model.addVars(self.gas_generator_num, self.T_fre)
-        self.append_gas_generator_trans   = self.getTranVars(self.append_gas_generator)
+        self.append_gas_generator_trans   = self.getTranVars(self.append_gas_generator, time_interval=int(self.T/self.T_fre))
 
         self.append_flow_source           = tonp(self.model.addVars(self.gas_well_num, self.T))
         self.append_pressure_load         = tonp(self.model.addVars(self.gas_load_num, self.T))

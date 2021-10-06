@@ -19,3 +19,9 @@ Gurobi 9.1.1 (win64) logging started Tue Oct  5 10:52:10 2021
 
 Gurobi 9.1.1 (win64) logging started Tue Oct  5 10:52:50 2021
 
+
+Gurobi 9.1.1 (win64) logging started Tue Oct  5 11:15:36 2021
+
+
+Gurobi 9.1.1 (win64) logging started Tue Oct  5 15:26:45 2021
+
