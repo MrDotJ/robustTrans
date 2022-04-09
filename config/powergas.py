@@ -50,7 +50,7 @@ load_power_max = load_power_max[:, 0:T].tolist()
 # change 1
 # 输出功率的上下限
 gen_power_min = [0,         0,         0,   ]
-gen_power_max = [0.3,       0.1,       3.1, ]
+gen_power_max = [0.1,       0.1,       0.1, ]
 gen_react_min = [0,         0,         0,   ]
 gen_react_max = [0.3,       0.1,       3.1, ]
 # 发电机成本

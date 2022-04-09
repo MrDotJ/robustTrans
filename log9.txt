@@ -1,0 +1,105 @@
+
+Gurobi 9.1.1 (win64) logging started Thu Oct 21 10:28:30 2021
+
+Changed value of parameter LogFile to log9.txt
+   Prev: log8.txt  Default: 
+Gurobi Optimizer version 9.1.1 build v9.1.1rc0 (win64)
+Thread count: 8 physical cores, 8 logical processors, using up to 8 threads
+Optimize a model with 74748 rows, 37764 columns and 400777 nonzeros
+Model fingerprint: 0x6df9bae4
+Model has 120 quadratic objective terms
+Model has 72 quadratic constraints
+Coefficient statistics:
+  Matrix range     [8e-13, 3e+00]
+  QMatrix range    [1e+00, 1e+00]
+  Objective range  [8e-04, 6e+00]
+  QObjective range [2e+00, 5e+01]
+  Bounds range     [1e-01, 1e+02]
+  RHS range        [2e+01, 2e+02]
+Presolve removed 53023 rows and 37321 columns
+Presolve time: 0.06s
+Presolved: 22360 rows, 577 columns, 197504 nonzeros
+Presolved model has 67 second-order cone constraints
+Ordering time: 0.01s
+
+Barrier statistics:
+ Dense cols : 72
+ AA' NZ     : 2.219e+05
+ Factor NZ  : 2.515e+05 (roughly 12 MBytes of memory)
+ Factor Ops : 3.191e+06 (less than 1 second per iteration)
+ Threads    : 8
+
+                  Objective                Residual
+Iter       Primal          Dual         Primal    Dual     Compl     Time
+   0  -5.58171772e+02 -1.09557240e+03  1.56e+02 1.13e+00  5.09e+01     1s
+   1  -5.58171772e+02 -1.09557240e+03  1.56e+02 1.13e+00  5.09e+01     2s
+   2  -5.58171772e+02 -1.09557240e+03  1.56e+02 1.13e+00  5.09e+01     2s
+
+Barrier performed 2 iterations in 2.04 seconds
+Numerical trouble encountered
+
+Model may be infeasible or unbounded.  Consider using the
+homogeneous algorithm (through parameter 'BarHomogeneous')
+
+
+Gurobi 9.1.1 (win64) logging started Thu Oct 21 17:39:51 2021
+
+Changed value of parameter LogFile to log9.txt
+   Prev: log8.txt  Default: 
+Gurobi Optimizer version 9.1.1 build v9.1.1rc0 (win64)
+Thread count: 8 physical cores, 8 logical processors, using up to 8 threads
+Optimize a model with 74748 rows, 37764 columns and 400797 nonzeros
+Model fingerprint: 0x62c791ef
+Model has 120 quadratic objective terms
+Model has 72 quadratic constraints
+Coefficient statistics:
+  Matrix range     [1e-10, 3e+00]
+  QMatrix range    [1e+00, 1e+00]
+  Objective range  [8e-04, 6e+00]
+  QObjective range [2e+00, 5e+01]
+  Bounds range     [1e-01, 1e+02]
+  RHS range        [7e+00, 2e+02]
+Presolve removed 53013 rows and 37313 columns
+Presolve time: 0.08s
+Presolved: 22370 rows, 585 columns, 201944 nonzeros
+Presolved model has 67 second-order cone constraints
+Ordering time: 0.00s
+
+Barrier statistics:
+ Dense cols : 82
+ AA' NZ     : 2.265e+05
+ Factor NZ  : 2.570e+05 (roughly 12 MBytes of memory)
+ Factor Ops : 3.368e+06 (less than 1 second per iteration)
+ Threads    : 8
+
+                  Objective                Residual
+Iter       Primal          Dual         Primal    Dual     Compl     Time
+   0  -5.63890369e+02 -1.10466890e+03  1.54e+02 1.13e+00  5.07e+01     1s
+   1  -1.09187501e+02 -2.78084208e+03  3.50e+01 3.50e-01  1.69e+01     2s
+   2   1.53624676e+02 -5.63163399e+03  1.39e+01 6.24e-02  4.62e+00     2s
+   3   1.80718899e+02 -1.06381159e+04  3.11e+00 6.86e-08  1.06e+00     3s
+   4   8.65882770e+01 -4.19850877e+03  1.14e+00 3.42e-09  2.93e-01     3s
+   5   8.65882770e+01 -4.19850877e+03  1.14e+00 3.42e-09  2.93e-01     4s
+   6   8.65882770e+01 -4.19850877e+03  1.14e+00 3.42e-09  2.93e-01     5s
+   7   8.65882740e+01 -4.19850874e+03  1.14e+00 3.42e-09  2.93e-01     5s
+   8   3.18968215e+01 -1.80234926e+03  2.32e-01 4.58e-12  9.17e-02     6s
+   9   5.04374312e+01 -9.55277057e+02  1.30e-01 3.01e-12  4.99e-02     6s
+  10   3.60823322e+01 -4.33653862e+02  7.65e-02 2.29e-11  2.31e-02     7s
+  11   2.85225859e+01 -1.56441872e+02  6.49e-05 3.50e-12  8.15e-03     7s
+  12   2.85225859e+01 -1.56441872e+02  6.49e-05 3.58e-12  8.15e-03     8s
+  13   2.85225859e+01 -1.56441872e+02  6.49e-05 3.57e-12  8.15e-03     8s
+  14   2.85225859e+01 -1.56441872e+02  6.49e-05 3.57e-12  8.15e-03     9s
+  15   2.85225859e+01 -1.56441872e+02  6.49e-05 3.56e-12  8.15e-03    10s
+  16   2.85225859e+01 -1.56441872e+02  6.49e-05 3.55e-12  8.15e-03    11s
+  17   2.85225859e+01 -1.56441872e+02  6.49e-05 3.55e-12  8.15e-03    11s
+  18   2.85225859e+01 -1.56441872e+02  6.49e-05 3.55e-12  8.15e-03    12s
+  19   2.85225859e+01 -1.56441872e+02  6.49e-05 3.55e-12  8.15e-03    13s
+  20   2.85225859e+01 -1.56441872e+02  6.49e-05 3.55e-12  8.15e-03    13s
+  21   2.85225859e+01 -1.56441872e+02  6.49e-05 3.55e-12  8.15e-03    14s
+
+Barrier performed 21 iterations in 14.06 seconds
+Numerical trouble encountered
+
+Model may be infeasible or unbounded.  Consider using the
+homogeneous algorithm (through parameter 'BarHomogeneous')
+

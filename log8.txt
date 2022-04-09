@@ -1,0 +1,124 @@
+
+Gurobi 9.1.1 (win64) logging started Thu Oct 21 10:27:06 2021
+
+Changed value of parameter LogFile to log8.txt
+   Prev: log7.txt  Default: 
+Gurobi Optimizer version 9.1.1 build v9.1.1rc0 (win64)
+Thread count: 8 physical cores, 8 logical processors, using up to 8 threads
+Optimize a model with 67536 rows, 34152 columns and 361510 nonzeros
+Model fingerprint: 0xbb67f46d
+Model has 120 quadratic objective terms
+Model has 72 quadratic constraints
+Coefficient statistics:
+  Matrix range     [8e-13, 3e+00]
+  QMatrix range    [1e+00, 1e+00]
+  Objective range  [8e-04, 6e+00]
+  QObjective range [2e+00, 5e+01]
+  Bounds range     [1e-01, 1e+02]
+  RHS range        [2e+01, 2e+02]
+Presolve removed 48005 rows and 33716 columns
+Presolve time: 0.07s
+Presolved: 20166 rows, 570 columns, 177106 nonzeros
+Presolved model has 67 second-order cone constraints
+Ordering time: 0.01s
+
+Barrier statistics:
+ Dense cols : 62
+ AA' NZ     : 2.509e+05
+ Factor NZ  : 2.804e+05 (roughly 11 MBytes of memory)
+ Factor Ops : 1.173e+07 (less than 1 second per iteration)
+ Threads    : 8
+
+                  Objective                Residual
+Iter       Primal          Dual         Primal    Dual     Compl     Time
+   0  -5.58036295e+02 -1.09562094e+03  1.56e+02 1.13e+00  5.09e+01     0s
+   1  -1.11658025e+02 -2.58298974e+03  3.14e+01 2.55e-01  1.40e+01     1s
+   2   7.08238818e+01 -4.47151070e+03  1.57e+01 6.46e-02  4.99e+00     1s
+   3   1.06529545e+02 -5.51887069e+03  1.20e+01 2.54e-02  2.79e+00     1s
+   4   6.71098635e+01 -7.33130373e+03  2.48e+00 8.93e-05  7.64e-01     1s
+   5   4.54594818e+01 -2.31453051e+03  1.71e+00 1.37e-07  2.24e-01     2s
+   6   4.99541183e+01 -8.36510496e+02  3.46e-01 1.86e-12  5.54e-02     2s
+   7   3.00665196e+01 -4.05662106e+02  1.32e-01 7.99e-13  2.47e-02     2s
+   8   1.62401173e+01 -2.72629711e+02  4.65e-02 5.83e-13  1.51e-02     2s
+   9   4.98495645e+00 -1.04844733e+02  4.20e-03 5.17e-12  5.40e-03     3s
+  10  -6.69093730e+00 -3.54101907e+01  2.46e-03 1.49e-12  1.41e-03     3s
+  11  -8.65058695e+00 -1.14966639e+01  7.03e-04 1.06e-12  1.40e-04     3s
+  12  -8.62106826e+00 -9.87253806e+00  2.22e+00 8.68e-12  4.08e-05     4s
+  13  -9.43319923e+00 -9.69138043e+00  1.01e+00 5.11e-10  1.10e-05     5s
+  14  -9.57209573e+00 -9.65315695e+00  1.59e-03 5.06e-10  3.96e-06     5s
+  15  -9.59034800e+00 -9.60200442e+00  7.03e-05 9.62e-11  5.69e-07     6s
+  16  -9.59041015e+00 -9.59128834e+00  1.25e-04 8.44e-12  4.37e-08     6s
+  17  -9.59042529e+00 -9.59128836e+00  2.32e-04 4.01e-11  4.37e-08     7s
+  18  -9.59041972e+00 -9.59128835e+00  4.30e-04 5.09e-11  4.37e-08     7s
+  19  -9.59041972e+00 -9.59128835e+00  4.30e-04 5.09e-11  4.37e-08     7s
+  20  -9.59041972e+00 -9.59128835e+00  4.30e-04 5.09e-11  4.37e-08     8s
+  21  -9.59041972e+00 -9.59128835e+00  4.30e-04 5.09e-11  4.37e-08     8s
+  22  -9.59041972e+00 -9.59128835e+00  4.30e-04 5.09e-11  4.37e-08     8s
+  23  -9.59041972e+00 -9.59128835e+00  4.30e-04 5.09e-11  4.37e-08     8s
+  24  -9.59041972e+00 -9.59128835e+00  4.30e-04 5.09e-11  4.37e-08     9s
+  25  -9.59041972e+00 -9.59128835e+00  4.30e-04 5.09e-11  4.37e-08     9s
+  26  -9.59041972e+00 -9.59128835e+00  4.30e-04 5.09e-11  4.37e-08     9s
+
+Barrier solved model in 26 iterations and 9.41 seconds
+Optimal objective -9.59041015e+00
+
+
+Gurobi 9.1.1 (win64) logging started Thu Oct 21 17:38:09 2021
+
+Changed value of parameter LogFile to log8.txt
+   Prev: log7.txt  Default: 
+Gurobi Optimizer version 9.1.1 build v9.1.1rc0 (win64)
+Thread count: 8 physical cores, 8 logical processors, using up to 8 threads
+Optimize a model with 67536 rows, 34152 columns and 361528 nonzeros
+Model fingerprint: 0x46d6ac65
+Model has 120 quadratic objective terms
+Model has 72 quadratic constraints
+Coefficient statistics:
+  Matrix range     [1e-10, 3e+00]
+  QMatrix range    [1e+00, 1e+00]
+  Objective range  [8e-04, 6e+00]
+  QObjective range [2e+00, 5e+01]
+  Bounds range     [1e-01, 1e+02]
+  RHS range        [7e+00, 2e+02]
+Presolve removed 47995 rows and 33708 columns
+Presolve time: 0.08s
+Presolved: 20176 rows, 578 columns, 180930 nonzeros
+Presolved model has 67 second-order cone constraints
+Ordering time: 0.01s
+
+Barrier statistics:
+ Dense cols : 73
+ AA' NZ     : 2.376e+05
+ Factor NZ  : 2.659e+05 (roughly 11 MBytes of memory)
+ Factor Ops : 8.627e+06 (less than 1 second per iteration)
+ Threads    : 8
+
+                  Objective                Residual
+Iter       Primal          Dual         Primal    Dual     Compl     Time
+   0  -5.64205237e+02 -1.10459690e+03  1.54e+02 1.13e+00  5.06e+01     1s
+   1  -1.08172094e+02 -2.75492903e+03  3.47e+01 3.48e-01  1.69e+01     1s
+   2   1.65619268e+02 -5.46474343e+03  1.40e+01 6.40e-02  4.76e+00     1s
+   3   3.64764155e+02 -1.05954467e+04  3.37e+00 7.04e-08  1.27e+00     2s
+   4   1.53075129e+02 -3.83431762e+03  1.26e+00 1.01e-09  3.15e-01     2s
+   5   8.97768545e+01 -1.03775817e+03  4.77e-01 1.77e-11  7.30e-02     3s
+   6   3.99211157e+01 -3.93370153e+02  1.38e-01 5.64e-12  2.45e-02     3s
+   7   1.46636759e+01 -1.94729123e+02  2.75e-01 2.56e-12  1.07e-02     4s
+   8   2.19880944e+00 -7.79623128e+01  8.57e-03 5.83e-13  3.92e-03     4s
+   9  -5.50313952e+00 -2.88607937e+01  2.54e-03 5.83e-13  1.14e-03     5s
+  10  -1.00811130e+01 -1.13916271e+01  2.20e+00 2.70e-13  1.69e-04     7s
+  11  -9.21113327e+00 -9.80225582e+00  2.97e-01 3.02e-13  4.33e-05     8s
+  12  -9.03039422e+00 -9.16166183e+00  3.23e-02 4.02e-10  7.95e-06     9s
+  13  -9.03039422e+00 -9.16166183e+00  3.23e-02 4.02e-10  7.95e-06     9s
+  14  -9.03039422e+00 -9.16166183e+00  3.23e-02 4.02e-10  7.95e-06     9s
+  15  -9.03039422e+00 -9.16166183e+00  3.23e-02 4.02e-10  7.95e-06    10s
+  16  -9.03039422e+00 -9.16166183e+00  3.23e-02 4.02e-10  7.95e-06    11s
+  17  -9.03039422e+00 -9.16166183e+00  3.23e-02 4.02e-10  7.95e-06    11s
+  18  -9.03039422e+00 -9.16166183e+00  3.23e-02 4.02e-10  7.95e-06    12s
+  19  -9.03039422e+00 -9.16166183e+00  3.23e-02 4.02e-10  7.95e-06    12s
+  20  -9.03039422e+00 -9.16166183e+00  3.23e-02 4.02e-10  7.95e-06    13s
+  21  -9.03039422e+00 -9.16166183e+00  3.23e-02 4.02e-10  7.95e-06    13s
+  22  -9.03039422e+00 -9.16166183e+00  3.23e-02 4.02e-10  7.95e-06    14s
+
+Barrier performed 22 iterations in 13.75 seconds
+Sub-optimal termination - objective -9.03039422e+00
+

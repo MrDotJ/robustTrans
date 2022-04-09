@@ -165,7 +165,7 @@ def getVarsDiff(expression):
         return allVars, allCoeff, constant
 INF = gurobi.GRB.INFINITY
 
-LOG_OUTPUT = False
+LOG_OUTPUT = True
 TIME_LONG_TO_FRE = 2
 
 # TODO:
@@ -683,58 +683,58 @@ class PowerGas:
         self.build_original_model_var()
         # ----------- 2.1 node power balance -----------------
         self.model.update()
-        #
-        # print('start')
-        # for node in range(self.bus_num):
-        #     for time in range(self.T_long):
-        #         self.model.addConstr(
-        #             sum(self.power_gen[np.where(np.array(self.gen_conn_power_index) == node), time].flatten()) +
-        #             sum(self.line_power_flow[np.where(np.array(self.line_end_point) == node), time].flatten()) -
-        #             sum((self.line_resistance[np.where(np.array(self.line_end_point) == node)] *
-        #                  self.line_current_square[np.where(np.array(self.line_end_point) == node), time]).flatten()) +
-        #             sum(self.gas_generator[np.where(np.array(self.gas_gen_index_power) == node), time].flatten())
-        #             ==
-        #             sum(self.power_load[np.where(np.array(self.load_index) == node), time].flatten()) +
-        #             sum(self.line_power_flow[np.where(np.array(self.line_start_point) == node), time].flatten()),
-        #             name='power_balance')
-        #         self.model.addConstr(
-        #             sum(self.react_gen[np.where(np.array(self.gen_conn_power_index) == node), time].flatten()) +
-        #             sum(self.line_react_flow[np.where(np.array(self.line_end_point) == node), time].flatten()) -
-        #             sum((self.line_reactance[np.where(np.array(self.line_end_point) == node)] *
-        #                  self.line_current_square[np.where(np.array(self.line_end_point) == node), time]).flatten())
-        #             ==
-        #             sum(self.react_load[np.where(np.array(self.load_index) == node), time].flatten()) +
-        #             sum(self.line_react_flow[np.where(np.array(self.line_start_point) == node), time].flatten()),
-        #             name='react_balance')
-        #
-        # # ----------- 2.2 line voltage drop ------------------
-        # for i in range(self.line_num):
-        #     start_point, end_point = self.line_start_point[i], self.line_end_point[i]
-        #     resistance, reactance = self.line_resistance[i], self.line_reactance[i]
-        #     impedance_square = reactance * reactance + resistance * resistance
-        #     for time in range(self.T_long):
-        #         self.model.addConstr(
-        #             self.voltage_square[end_point, time] -
-        #             self.voltage_square[start_point, time]
-        #             ==
-        #             impedance_square * self.line_current_square[i, time] -
-        #             2 * (resistance * self.line_power_flow[i, time] +
-        #                  reactance * self.line_react_flow[i, time]),
-        #             name='voltage_drop')
-        #         self.model.addConstr(
-        #             self.line_power_flow[i, time] * self.line_power_flow[i, time] +
-        #             self.line_react_flow[i, time] * self.line_react_flow[i, time]
-        #             <=
-        #             self.line_current_square[i, time] * self.voltage_square[start_point, time],
-        #             name='flow_relax')
+
+        print('start')
+        for node in range(self.bus_num):
+            for t in range(self.T_long):
+                self.model.addConstr(
+                    sum(self.power_gen[np.where(np.array(self.gen_conn_power_index) == node), t].flatten()) +
+                    sum(self.line_power_flow[np.where(np.array(self.line_end_point) == node), t].flatten()) -
+                    sum((self.line_resistance[np.where(np.array(self.line_end_point) == node)] *
+                         self.line_current_square[np.where(np.array(self.line_end_point) == node), t]).flatten()) +
+                    sum(self.gas_generator[np.where(np.array(self.gas_gen_index_power) == node), t].flatten())
+                    ==
+                    sum(self.power_load[np.where(np.array(self.load_index) == node), t].flatten()) +
+                    sum(self.line_power_flow[np.where(np.array(self.line_start_point) == node), t].flatten()),
+                    name='power_balance')
+                self.model.addConstr(
+                    sum(self.react_gen[np.where(np.array(self.gen_conn_power_index) == node), t].flatten()) +
+                    sum(self.line_react_flow[np.where(np.array(self.line_end_point) == node), t].flatten()) -
+                    sum((self.line_reactance[np.where(np.array(self.line_end_point) == node)] *
+                         self.line_current_square[np.where(np.array(self.line_end_point) == node), t]).flatten())
+                    ==
+                    sum(self.react_load[np.where(np.array(self.load_index) == node), t].flatten()) +
+                    sum(self.line_react_flow[np.where(np.array(self.line_start_point) == node), t].flatten()),
+                    name='react_balance')
+
+        # ----------- 2.2 line voltage drop ------------------
+        for i in range(self.line_num):
+            start_point, end_point = self.line_start_point[i], self.line_end_point[i]
+            resistance, reactance = self.line_resistance[i], self.line_reactance[i]
+            impedance_square = reactance * reactance + resistance * resistance
+            for t in range(self.T_long):
+                self.model.addConstr(
+                    self.voltage_square[end_point, t] -
+                    self.voltage_square[start_point, t]
+                    ==
+                    impedance_square * self.line_current_square[i, t] -
+                    2 * (resistance * self.line_power_flow[i, t] +
+                         reactance * self.line_react_flow[i, t]),
+                    name='voltage_drop')
+                self.model.addConstr(
+                    self.line_power_flow[i, t] * self.line_power_flow[i, t] +
+                    self.line_react_flow[i, t] * self.line_react_flow[i, t]
+                    <=
+                    self.line_current_square[i, t] * self.voltage_square[start_point, t],
+                    name='flow_relax')
 
         # ====> Two port network of gas pipeline [gas system transient]
 
-        self.Matrix_ab[np.abs(self.Matrix_ab) <= 1e-5 ] = 0
-        self.Matrix_cd[np.abs(self.Matrix_cd) <= 1e-5 ] = 0
+        self.Matrix_ab[np.abs(self.Matrix_ab) <= 1e-8 ] = 0
+        self.Matrix_cd[np.abs(self.Matrix_cd) <= 1e-8 ] = 0
 
-        self.Matrix_ab = np.around(self.Matrix_ab, 5)
-        self.Matrix_cd = np.around(self.Matrix_cd, 5)
+        self.Matrix_ab = np.around(self.Matrix_ab, 8)
+        self.Matrix_cd = np.around(self.Matrix_cd, 8)
 
         def myDot2(matrix, syms, row, y_ranges):
             value = matrix[row][self.node_counts - 1][y_ranges]
@@ -838,12 +838,250 @@ class PowerGas:
             for t in range(self.T_long):
                 objs.append(-1 * self.gas_generator_reserve_up[gen, t] - self.gas_generator_reserve_down[gen, t])
         # --------------- 3 set objective ----------------
-        self.model.setParam('OutputFlag', 0)
-        self.model.setParam('BarHomogeneous', 1)
+        # self.model.setParam('OutputFlag', 0)
+        # self.model.setParam('BarHomogeneous', 1)
         # self.model.setParam('Method', 1)
         self.model.setObjective(sum(objs))
 
+    def build_original_model_var_network(self):
+        # build power system variables
+        self.power_gen = tonp(self.model.addVars(
+            self.gen_num, self.T_long,
+            lb=[[self.gen_power_min[i]] * self.T_long for i in range(self.gen_num)],
+            ub=[[self.gen_power_max[i]] * self.T_long for i in range(self.gen_num)],
+            name='power_gene'))
+        self.react_gen = tonp(self.model.addVars(
+            self.gen_num, self.T_long,
+            lb=[[self.gen_react_min[i]] * self.T_long for i in range(self.gen_num)],
+            ub=[[self.gen_react_max[i]] * self.T_long for i in range(self.gen_num)],
+            name='reactive_gene'))
+        self.power_load = tonp(self.model.addVars(
+            self.load_num, self.T_long,
+            lb=self.load_power_min,  # [[self.load_power_min[i]] * self.T for i in range(self.load_num)],
+            ub=self.load_power_max,  # [[self.load_power_max[i]] * self.T for i in range(self.load_num)],
+            name='power_load'))
+        self.react_load = tonp(self.model.addVars(
+            self.load_num, self.T_long,
+            lb=self.load_react_min,  # [[self.load_react_min[i]] * self.T for i in range(self.load_num)],
+            ub=self.load_react_max,  # [[self.load_react_max[i]] * self.T for i in range(self.load_num)],
+            name='react_load'))
 
+        self.power_gen_trans = self.getTranVars(self.power_gen)
+        self.react_gen_trans = self.getTranVars(self.react_gen)
+        self.power_load_trans = self.getTranVars(self.power_load)
+        self.react_load_trans = self.getTranVars(self.react_load)
+
+        self.voltage_square = tonp(self.model.addVars(
+            self.bus_num, self.T_long,
+            lb=self.bus_voltage_min[0] * self.bus_voltage_min[0],
+            ub=self.bus_voltage_max[0] * self.bus_voltage_max[0],
+            name='bus_voltage_square'))
+        self.line_current_square = tonp(self.model.addVars(
+            self.line_num, self.T_long,
+            ub=self.line_current_capacity[0] * self.line_current_capacity[0],
+            name='line_current_square'))
+        self.line_power_flow = tonp(self.model.addVars(
+            self.line_num, self.T_long,
+            lb=-1 * self.line_power_flow_max, ub=self.line_power_flow_max,
+            name='line_power_flow'))
+        self.line_react_flow = tonp(self.model.addVars(
+            self.line_num, self.T_long,
+            lb=-1 * self.line_react_flow_max, ub=self.line_react_flow_max,
+            name='line_react_flow'))
+
+
+
+        self.gas_generator = tonp(self.model.addVars(
+            self.gas_generator_num, self.T_long,
+            name='gas_generator_transient_output'
+        ))
+        self.gas_generator_reserve_up = tonp(self.model.addVars(
+            self.gas_generator_num, self.T_long,
+            name='gas_generator_transient_reserve'
+        ))
+        self.gas_generator_reserve_down = tonp(self.model.addVars(
+            self.gas_generator_num, self.T_long,
+            name='gas_generator_transient_reserve'
+        ))
+
+        # gas load is T-long
+        # 气负荷 小时级
+        self.gas_load = self.model.addVars(
+            self.gas_load_num, self.T_long,
+            lb=self.gas_load_min,
+            ub=self.gas_load_max,
+            name='gas_load_transient_output'
+        )
+        # 气井出力
+        # gas well gas output in real-time
+        self.well_in_trans = tonp(self.model.addVars(
+            self.gas_well_num, self.T,
+            name='gas_well_transient_output'
+        ))
+        self.well_pressure = tonp(self.model.addVars(
+            self.gas_well_num, self.T_long,
+            name='gas_well_set_pressure'
+        ))
+
+        self.gas_flow_source = tonp(self.model.addVars(
+            1, self.T,
+            lb=-1*INF, ub=0,
+            name='gas_flow_source'
+        ))
+        self.gas_pressure_load = tonp(self.model.addVars(
+            self.gas_load_num, self.T
+        ))
+        self.gas_pressure_generator = tonp(self.model.addVars(
+            self.gas_generator_num, self.T
+        ))
+
+        self.gas_generator_trans = self.getTranVars(self.gas_generator)
+        self.gas_load_trans = self.getTranVars(self.gas_load)
+        self.well_pressure_trans = self.getTranVars(self.well_pressure)
+    def buildBasePrimaryProblemNetwork(self):
+        # ----------- 1. add Vars ---------------------------
+        self.build_original_model_var_network()
+        # ----------- 2.1 node power balance -----------------
+        self.model.update()
+
+        print('start')
+        for node in range(self.bus_num):
+            for t in range(self.T_long):
+                self.model.addConstr(
+                    sum(self.power_gen[np.where(np.array(self.gen_conn_power_index) == node), t].flatten()) +
+                    sum(self.line_power_flow[np.where(np.array(self.line_end_point) == node), t].flatten()) -
+                    sum((self.line_resistance[np.where(np.array(self.line_end_point) == node)] *
+                         self.line_current_square[np.where(np.array(self.line_end_point) == node), t]).flatten()) +
+                    sum(self.gas_generator[np.where(np.array(self.gas_gen_index_power) == node), t].flatten())
+                    ==
+                    sum(self.power_load[np.where(np.array(self.load_index) == node), t].flatten()) +
+                    sum(self.line_power_flow[np.where(np.array(self.line_start_point) == node), t].flatten()),
+                    name='power_balance')
+                self.model.addConstr(
+                    sum(self.react_gen[np.where(np.array(self.gen_conn_power_index) == node), t].flatten()) +
+                    sum(self.line_react_flow[np.where(np.array(self.line_end_point) == node), t].flatten()) -
+                    sum((self.line_reactance[np.where(np.array(self.line_end_point) == node)] *
+                         self.line_current_square[np.where(np.array(self.line_end_point) == node), t]).flatten())
+                    ==
+                    sum(self.react_load[np.where(np.array(self.load_index) == node), t].flatten()) +
+                    sum(self.line_react_flow[np.where(np.array(self.line_start_point) == node), t].flatten()),
+                    name='react_balance')
+
+        # ----------- 2.2 line voltage drop ------------------
+        for i in range(self.line_num):
+            start_point, end_point = self.line_start_point[i], self.line_end_point[i]
+            resistance, reactance = self.line_resistance[i], self.line_reactance[i]
+            impedance_square = reactance * reactance + resistance * resistance
+            for t in range(self.T_long):
+                self.model.addConstr(
+                    self.voltage_square[end_point, t] -
+                    self.voltage_square[start_point, t]
+                    ==
+                    impedance_square * self.line_current_square[i, t] -
+                    2 * (resistance * self.line_power_flow[i, t] +
+                         reactance * self.line_react_flow[i, t]),
+                    name='voltage_drop')
+                self.model.addConstr(
+                    self.line_power_flow[i, t] * self.line_power_flow[i, t] +
+                    self.line_react_flow[i, t] * self.line_react_flow[i, t]
+                    <=
+                    self.line_current_square[i, t] * self.voltage_square[start_point, t],
+                    name='flow_relax')
+
+        # ====> Two port network of gas pipeline [gas system transient]
+
+
+
+
+
+
+
+        # build network constraints
+        MldPsr = np.vstack((
+            self.gas_load_trans             .reshape(-1, 1),         #
+            self.gas_generator_trans        .reshape(-1, 1),         # this is var
+            self.well_pressure_trans        .reshape(-1, 1)          # this is known value
+        ))
+
+        MsrPld = np.vstack((
+            self.gas_flow_source           .reshape(-1, 1),
+            self.gas_pressure_load         .reshape(-1, 1),
+            self.gas_pressure_generator    .reshape(-1, 1)       # all these are vars
+        ))
+        # byPassIndex = self.append_flow_source.reshape(-1, 1).shape[0]
+
+        if LOG_OUTPUT:
+            print('----add prim constr Step 1 ' + str(self.YY.shape[0]) + '----------------')
+        iter_count = self.YY.shape[0]
+        for row in range(iter_count):
+            if row % 100 == 0:
+                if LOG_OUTPUT:
+                    print('------- add prim constraint' + str(row) + '----------')
+            self.model.addConstr(
+                MsrPld[row, 0] ==
+                (self.YY[row, :]).dot(MldPsr)[0]
+            )
+
+
+        if LOG_OUTPUT:
+            print('----add prim constr robust Step 3----------------')
+        # build pressure limit
+        node_collection = self.gas_pressure_load.flatten().tolist() + \
+                          self.gas_pressure_generator.flatten().tolist()
+        for load in node_collection:
+            self.model.addConstr(
+                load <= self.gas_node_pressure_max
+            )
+            self.model.addConstr(
+                load >= self.gas_node_pressure_min
+            )
+
+        for gen in range(self.gas_generator_num):
+            for t in range(self.T_long):
+                self.model.addConstr(
+                    self.gas_generator[gen, t] + self.gas_generator_reserve_up[gen, t] <= self.gas_gen_capacity[gen]
+                )
+                self.model.addConstr(
+                    self.gas_generator[gen, t] - self.gas_generator_reserve_down[gen, t] >= 0
+                )
+
+        for t in range(self.T):
+            self.model.addConstr(
+                self.well_pressure_trans[0, t] == self.PRESSURE_CONSTANT
+            )
+
+        objs = []
+
+        for load in range(self.load_num):
+            for t in range(self.T_long):
+                objs.append((self.power_load[load, t] - (self.load_power_max[load, t] + self.load_power_min[load, t]) / 2) *
+                            (self.power_load[load, t] - (self.load_power_max[load, t] + self.load_power_min[load, t]) / 2))
+                objs.append((self.react_load[load, t] - (self.load_react_max[load, t] + self.load_react_min[load, t]) / 2) *
+                            (self.react_load[load, t] - (self.load_react_max[load, t] + self.load_react_min[load, t]) / 2))
+
+        for gen in range(self.gen_num):
+            for t in range(self.T_long):
+                objs.append(self.gen_cost_a[gen] * self.power_gen[gen, t] * self.power_gen[gen, t])
+                objs.append(self.gen_cost_b[gen] * self.power_gen[gen, t])
+                objs.append(self.gen_cost_c[gen])
+
+        for well in range(self.gas_well_num):
+            for t in range(self.T):
+                objs.append(-1 * self.gas_flow_source[well, t] * self.well_cost / self.time_counts)
+
+        for load in range(self.gas_load_num):
+            for t in range(self.T_long):
+                objs.append((self.gas_load[load, t] - (self.gas_load_min[load, t] + self.gas_load_max[load, t]) / 2) *
+                            (self.gas_load[load, t] - (self.gas_load_min[load, t] + self.gas_load_max[load, t]) / 2))
+
+        for gen in range(self.gas_generator_num):
+            for t in range(self.T_long):
+                objs.append(-1 * self.gas_generator_reserve_up[gen, t] - self.gas_generator_reserve_down[gen, t])
+        # --------------- 3 set objective ----------------
+        # self.model.setParam('OutputFlag', 0)
+        # self.model.setParam('BarHomogeneous', 1)
+        # self.model.setParam('Method', 1)
+        self.model.setObjective(sum(objs))
 
 
 
@@ -1292,7 +1530,7 @@ class PowerGas:
                 trans[row, t] = varLong[row, int(t/time_interval)]
         return trans
     def buildRobustVarsNetwork(self, model):
-        self.robust_pressure_well              = to_value(self.node_pressure_trans[0])                         # this is known source pressure
+        self.robust_pressure_well              = to_value(self.well_pressure_trans[0])                         # this is known source pressure
 
         self.robust_gas_generator_base         = to_value(self.gas_generator)                                                          # this is known generator load
         self.robust_gas_generator_reserve_up   = to_value(self.gas_generator_reserve_up)              # this is known generator reserve
@@ -2235,7 +2473,7 @@ class PowerGas:
 
     #
     def addAppendVars(self):
-        self.append_pressure_well         = self.node_pressure_trans[0, :]
+        self.append_pressure_well         = self.well_pressure_trans
         self.append_gas_generator         = self.model.addVars(self.gas_generator_num, self.T_fre)
         self.append_gas_generator_trans   = self.getTranVars(self.append_gas_generator, time_interval=int(self.T/self.T_fre))
 
@@ -2414,6 +2652,14 @@ class PowerGas:
 
     def drawPressure(self):
         import matplotlib.pyplot as plt
+
+        plt.subplot(2, 1, 1)
+        plt.plot(to_value(self.gas_pressure_generator).flatten())
+        plt.subplot(2, 1, 2)
+        plt.plot(to_value(self.gas_pressure_load).flatten())
+        plt.show()
+
+        return
 
         n = self.gas_node_num
         row = int(n / 2) if int(n % 2) == 0 else int(n / 2) + 1
@@ -2747,7 +2993,7 @@ def testGetDual():
 
 
 def doMain():
-    pg.buildBasePrimaryProblem()
+    pg.buildBasePrimaryProblemNetwork()
 
     # pg.model.optimize()
     # pg.feasibleProblem()
@@ -2756,7 +3002,7 @@ def doMain():
 
     for i in range(17):
         print('Stage 1 : preSolve : [ Iteration: ' + str(i) + ']')
-        pg.model.setParam('OutputFlag', 0)
+        # pg.model.setParam('OutputFlag', 0)
         pg.model.setParam("LogFile", "log" + str(i) + '.txt')
         pg.model.optimize()
         pg.drawPressure()
